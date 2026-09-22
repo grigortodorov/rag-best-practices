@@ -13,8 +13,10 @@ from ragpractices import __version__
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
 from ragpractices.citations import attach_citations
+from ragpractices.groundedness import check_groundedness
 from ragpractices.hybrid import hybrid_search
-from ragpractices.ingest import load_path, save_corpus_jsonl
+from ragpractices.ingest import corpus_to_hybrid_docs, load_path, save_corpus_jsonl
+from ragpractices.packing import pack_context
 from ragpractices.rerank import mmr_rerank, rerank
 from ragpractices.rewrite import multi_query, rewrite_query
 from ragpractices.rubric import DIMENSIONS, format_scorecard, score_answer
@@ -265,12 +267,215 @@ def cmd_cite(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_pack(args: argparse.Namespace) -> int:
+    docs_path = Path(args.docs)
+    # Prefer cite-sources loader (jsonl / json / ---) then pack text fields
+    sources = _load_cite_sources(docs_path)
+    docs: list[dict[str, Any]] = []
+    for s in sources:
+        text = str(s.get("text") or s.get("document") or s.get("snippet") or "")
+        row: dict[str, Any] = {"id": s.get("id"), "text": text}
+        if "score" in s:
+            row["score"] = s["score"]
+        docs.append(row)
+
+    result = pack_context(
+        docs,
+        max_tokens=args.max_tokens,
+        separator=args.separator,
+        preserve_order=not args.by_score,
+        truncate=args.truncate,
+    )
+    sys.stdout.write(result.packed_text)
+    if result.packed_text and not result.packed_text.endswith("\n"):
+        sys.stdout.write("\n")
+    sys.stdout.flush()
+    summary = {
+        "included": result.included,
+        "omitted": result.omitted,
+        "estimated_tokens": result.estimated_tokens,
+        "max_tokens": result.max_tokens,
+    }
+    print("---", file=sys.stderr)
+    json.dump(summary, sys.stderr, ensure_ascii=False, indent=2)
+    sys.stderr.write("\n")
+    sys.stderr.flush()
+    return 0
+
+
+def cmd_ground(args: argparse.Namespace) -> int:
+    answer = _load_answer(args.answer)
+    sources = _load_cite_sources(Path(args.sources))
+    report = check_groundedness(
+        answer,
+        sources,
+        min_overlap=args.min_overlap,
+    )
+    payload = {
+        "score": report.score,
+        "supported_word_ratio": report.supported_word_ratio,
+        "unsupported_sentences": report.unsupported_sentences,
+        "per_source": report.per_source,
+        "notes": report.notes,
+    }
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"score: {report.score:.4f}")
+        print(f"supported_word_ratio: {report.supported_word_ratio:.4f}")
+        if report.unsupported_sentences:
+            print("unsupported_sentences:")
+            for s in report.unsupported_sentences:
+                print(f"  - {s}")
+        else:
+            print("unsupported_sentences: (none)")
+        print(f"notes: {report.notes}")
+    return 0 if report.score >= args.min_overlap else 1
+
+
+def _default_demo_docs() -> Path:
+    """Prefer examples/hybrid-docs.txt, else examples/ingest-sample."""
+    root = Path.cwd()
+    hybrid = root / "examples" / "hybrid-docs.txt"
+    if hybrid.is_file():
+        return hybrid
+    sample = root / "examples" / "ingest-sample"
+    if sample.is_dir():
+        return sample
+    return hybrid
+
+
+def run_demo_pipeline(
+    query: str,
+    docs_path: Path,
+    *,
+    max_tokens: int = 200,
+    rewrite: bool = True,
+) -> int:
+    """Shared end-to-end demo used by CLI and examples/e2e_demo.py."""
+    print("=== ragpractices demo ===")
+    print(f"query: {query}")
+    print(f"docs:  {docs_path}")
+    print()
+
+    # 1. Load
+    print("1) Load documents")
+    if docs_path.is_dir():
+        corpus = load_path(docs_path)
+        documents = corpus_to_hybrid_docs(corpus)
+        ids = [d.id for d in corpus]
+        print(f"   loaded {len(documents)} file(s) via ingest")
+    else:
+        documents = _load_hybrid_docs(docs_path)
+        ids = [f"doc-{i}" for i in range(len(documents))]
+        print(f"   loaded {len(documents)} section(s) from file")
+    print()
+
+    # 2. Optional rewrite
+    search_query = query
+    if rewrite:
+        print("2) Rewrite query (expand)")
+        rw = rewrite_query(query, mode="expand")
+        search_query = rw["rewritten"]
+        print(f"   original:  {rw['original']}")
+        print(f"   rewritten: {search_query}")
+        print()
+    else:
+        print("2) Rewrite skipped")
+        print()
+
+    # 3. Hybrid search
+    print("3) Hybrid search (keyword / RRF)")
+    hits = hybrid_search(search_query, documents, fusion="rrf")
+    top_hits = hits[: min(5, len(hits))]
+    for h in top_hits:
+        snippet = h["document"].replace("\n", " ")[:80]
+        print(f"   [{h['index']}] score={h['score']:.4f}  {snippet}")
+    print()
+
+    # 4. Rerank
+    print("4) Rerank (keyword blend)")
+    cand_docs = [h["document"] for h in top_hits]
+    cand_ids = [ids[h["index"]] for h in top_hits]
+    ranked = rerank(search_query, cand_docs, top_k=min(3, len(cand_docs)))
+    for r in ranked:
+        print(f"   [{cand_ids[r['index']]}] score={r['score']:.4f}")
+    print()
+
+    # 5. Pack context
+    print(f"5) Pack context (max_tokens={max_tokens})")
+    pack_docs = [
+        {
+            "id": cand_ids[r["index"]],
+            "text": r["document"],
+            "score": r["score"],
+        }
+        for r in ranked
+    ]
+    packed = pack_context(pack_docs, max_tokens=max_tokens, preserve_order=True)
+    print(f"   included: {packed.included}")
+    print(f"   omitted:  {packed.omitted}")
+    print(f"   estimated_tokens: {packed.estimated_tokens}/{packed.max_tokens}")
+    preview = packed.packed_text.replace("\n", " ")[:120]
+    print(f"   preview: {preview}...")
+    print()
+
+    # 6. Cite a canned answer
+    print("6) Attach citations (canned answer)")
+    canned = (
+        "Refunds are accepted within 30 days of purchase. "
+        "Standard shipping takes 5-7 business days."
+    )
+    cite_sources = [
+        {"id": d["id"], "text": d["text"], "score": d.get("score")}
+        for d in pack_docs
+    ]
+    cited = attach_citations(canned, cite_sources, style="numeric")
+    print(cited["full_text"][:400])
+    if len(cited["full_text"]) > 400:
+        print("   …")
+    print()
+
+    # 7. Groundedness
+    print("7) Groundedness check (heuristic stub)")
+    report = check_groundedness(canned, cite_sources)
+    print(f"   score: {report.score:.4f}")
+    if report.unsupported_sentences:
+        print("   unsupported:")
+        for s in report.unsupported_sentences:
+            print(f"     - {s}")
+    else:
+        print("   unsupported_sentences: (none)")
+    print(f"   notes: {report.notes}")
+    print()
+    print("=== demo complete ===")
+    return 0
+
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    docs_path = Path(args.docs) if args.docs else _default_demo_docs()
+    if not docs_path.exists():
+        raise ValueError(
+            f"docs path not found: {docs_path} "
+            "(run from repo root or pass --docs)"
+        )
+    return run_demo_pipeline(
+        args.query,
+        docs_path,
+        max_tokens=args.max_tokens,
+        rewrite=not args.no_rewrite,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ragpractices",
         description=(
             "Toolkit helpers for RAG chunking, ingest, hybrid search, "
-            "rewrite, rerank, citations, scoring, and checklists."
+            "rewrite, rerank, packing, groundedness, citations, "
+            "scoring, and checklists."
         ),
     )
     parser.add_argument(
@@ -471,6 +676,102 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit answer/sources_block/full_text as JSON",
     )
     p_cite.set_defaults(func=cmd_cite)
+
+
+    p_pack = sub.add_parser(
+        "pack",
+        help="Pack documents under a token budget (~4 chars/token heuristic)",
+    )
+    p_pack.add_argument(
+        "--docs",
+        required=True,
+        help=(
+            "Path to docs: JSONL (id+text), JSON list, or hybrid-docs "
+            "file (--- separated)"
+        ),
+    )
+    p_pack.add_argument(
+        "--max-tokens",
+        type=int,
+        default=500,
+        help="Token budget (default: 500; ~4 chars/token)",
+    )
+    p_pack.add_argument(
+        "--separator",
+        default="\n\n---\n\n",
+        help="Separator between packed docs",
+    )
+    p_pack.add_argument(
+        "--by-score",
+        action="store_true",
+        help="Sort by score descending before packing (default: preserve order)",
+    )
+    p_pack.add_argument(
+        "--truncate",
+        action="store_true",
+        help="Truncate the last partial doc to fill remaining budget",
+    )
+    p_pack.set_defaults(func=cmd_pack)
+
+    p_ground = sub.add_parser(
+        "ground",
+        help="Heuristic groundedness check (word overlap stub, not NLI)",
+    )
+    p_ground.add_argument(
+        "--answer",
+        required=True,
+        help="Answer text, or path to a UTF-8 file containing the answer",
+    )
+    p_ground.add_argument(
+        "--sources",
+        required=True,
+        help=(
+            "Path to sources: JSONL (id+text), JSON list, or hybrid-docs "
+            "file (--- separated)"
+        ),
+    )
+    p_ground.add_argument(
+        "--min-overlap",
+        type=float,
+        default=0.0,
+        help="Soft gate: exit 1 if score is below this (default: 0.0)",
+    )
+    p_ground.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit full GroundednessReport fields as JSON",
+    )
+    p_ground.set_defaults(func=cmd_ground)
+
+    p_demo = sub.add_parser(
+        "demo",
+        help="End-to-end demo: rewrite → hybrid → rerank → pack → cite → ground",
+    )
+    p_demo.add_argument(
+        "--query",
+        default="refund shipping policy",
+        help="Query string (default: refund shipping policy)",
+    )
+    p_demo.add_argument(
+        "--docs",
+        default=None,
+        help=(
+            "Docs path (file or directory). Default: examples/hybrid-docs.txt "
+            "or examples/ingest-sample when run from repo root"
+        ),
+    )
+    p_demo.add_argument(
+        "--max-tokens",
+        type=int,
+        default=200,
+        help="Packing budget (default: 200)",
+    )
+    p_demo.add_argument(
+        "--no-rewrite",
+        action="store_true",
+        help="Skip the query-rewrite step",
+    )
+    p_demo.set_defaults(func=cmd_demo)
 
     return parser
 

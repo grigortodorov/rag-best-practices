@@ -44,13 +44,13 @@ Familiarity with basic LLM apps helps; you do not need a research background.
 | [10 — Multimodal and tables](docs/10-multimodal-and-tables.md) | PDFs, tables, images, OCR, structure-aware chunking |
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
 | [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
-| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / chunk / hybrid / rewrite / rerank / cite / score / checklist) |
+| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / chunk / hybrid / rewrite / rerank / pack / ground / cite / demo / score / checklist) |
 
 **Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime. For the installable helpers, see [13](docs/13-toolkit.md).
 
 ## Usable toolkit
 
-Installable helpers (`ragpractices`) for document ingest, chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, citation formatting, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. PyPI package name: `ragpractices` (v0.4.0+).
+Installable helpers (`ragpractices`) for document ingest, chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. PyPI package name: `ragpractices` (v0.5.0+).
 
 ```bash
 pip install -e .
@@ -61,6 +61,9 @@ ragpractices hybrid "refund shipping" --docs examples/hybrid-docs.txt --fusion r
 ragpractices rewrite "refund ship" --multi
 ragpractices rerank "refund" --docs examples/hybrid-docs.txt --top 3
 ragpractices cite --answer "Refunds are within 30 days [1]." --sources examples/hybrid-docs.txt
+ragpractices pack --docs examples/hybrid-docs.txt --max-tokens 40
+ragpractices ground --answer "Refunds are within 30 days." --sources examples/hybrid-docs.txt
+ragpractices demo --query "refund shipping"
 ragpractices score --scores groundedness=2,relevance=2,completeness=1,citation_quality=2
 ```
 
@@ -81,6 +84,7 @@ Worked sketches and checklists you can copy into a design review:
 | [sample.txt](examples/sample.txt) | Tiny text fixture for the chunk CLI |
 | [hybrid-docs.txt](examples/hybrid-docs.txt) | Tiny multi-doc fixture for the hybrid CLI |
 | [ingest-sample/](examples/ingest-sample/) | Tiny multi-file fixture for the ingest CLI |
+| [e2e_demo.py](examples/e2e_demo.py) | Runnable end-to-end pipeline (rewrite → ground) |
 
 ## Quick start mindset
 

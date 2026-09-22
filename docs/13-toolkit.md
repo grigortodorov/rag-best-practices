@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, citation formatting, answer scoring, and a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.4.0+`).
+Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.5.0+`).
 
 ## Library API
 
@@ -45,6 +45,12 @@ from ragpractices import (
     multi_query,
     rerank,
     mmr_rerank,
+    PackResult,
+    estimate_tokens,
+    pack_context,
+    truncate_to_tokens,
+    GroundednessReport,
+    check_groundedness,
     Citation,
     format_inline_citations,
     build_sources_block,
@@ -180,6 +186,53 @@ rerank("refund", docs, top_k=2)
 mmr_rerank("refund shipping", docs, lambda_mult=0.7, top_k=2)
 ```
 
+
+### Context packing / token budget
+
+Educational packing helpers. Token estimates use **~4 characters per token** (not a real tokenizer).
+
+#### `estimate_tokens(text) -> int`
+
+`ceil(len(text) / 4)`; empty/whitespace → `0`.
+
+#### `truncate_to_tokens(text, max_tokens) -> str`
+
+Hard character cap at `max_tokens * 4`.
+
+#### `pack_context(docs, *, max_tokens, separator="\n\n---\n\n", preserve_order=True, truncate=False) -> PackResult`
+
+Greedily packs strings or dicts (`text` / optional `id`, `score`) under a budget. Oversized docs are skipped unless `truncate=True` (then the last partial may be truncated). `preserve_order=False` sorts by `score` descending first.
+
+`PackResult`: `packed_text`, `included`, `omitted`, `estimated_tokens`, `max_tokens`.
+
+```python
+from ragpractices import pack_context, estimate_tokens
+
+docs = ["Refund within 30 days.", "Shipping takes 5-7 days.", "Password reset."]
+result = pack_context(docs, max_tokens=20)
+print(result.included, result.estimated_tokens)
+```
+
+### Groundedness check stub
+
+Heuristic word-overlap check (**not** a production NLI / entailment judge). Related: [09 — Citations and grounding](09-citations-and-grounding.md) · [04 — Evaluation](04-evaluation.md).
+
+#### `check_groundedness(answer, sources, *, min_overlap=0.0) -> GroundednessReport`
+
+Lowercases alphanumeric tokens, drops a light stopword list, and reports the fraction of unique answer content words found in the union of source texts. Also lists per-source overlap and unsupported answer sentences (low sentence-level overlap).
+
+`GroundednessReport`: `score` (0–1), `supported_word_ratio`, `unsupported_sentences`, `per_source`, `notes`.
+
+```python
+from ragpractices import check_groundedness
+
+report = check_groundedness(
+    "Refunds are within 30 days.",
+    ["Refund requests are accepted within 30 days of purchase."],
+)
+print(report.score, report.unsupported_sentences)
+```
+
 ### Citation formatter
 
 Helpers to format grounded answers with inline citations and a Sources appendix. Related: [09 — Citations and grounding](09-citations-and-grounding.md).
@@ -293,6 +346,34 @@ ragpractices cite --answer "See the policy." --sources /tmp/corpus.jsonl \
   --style bracketed --json
 ```
 
+
+### Pack context under a token budget
+
+Docs file formats match `cite` (JSONL / JSON / `---` separated). Packed text goes to stdout; a JSON summary of included/omitted tokens goes to stderr.
+
+```bash
+ragpractices pack --docs examples/hybrid-docs.txt --max-tokens 40
+ragpractices pack --docs examples/hybrid-docs.txt --max-tokens 20 --truncate
+```
+
+### Heuristic groundedness check
+
+```bash
+ragpractices ground --answer "Refunds are within 30 days." \
+  --sources examples/hybrid-docs.txt
+ragpractices ground --answer "We ship unicorns tomorrow." \
+  --sources examples/hybrid-docs.txt --json
+```
+
+### End-to-end demo
+
+Runs rewrite → hybrid → rerank → pack → cite → ground against sample docs (defaults to `examples/hybrid-docs.txt` when run from the repo root). Also available as `examples/e2e_demo.py`.
+
+```bash
+ragpractices demo --query "refund shipping" --max-tokens 200
+PYTHONPATH=src python examples/e2e_demo.py
+```
+
 ### Score an answer
 
 ```bash
@@ -323,12 +404,13 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: local document ingest, character/heading chunking, hybrid search / rewrite / rerank *stubs* (not a production retriever), citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
+This toolkit is intentionally small: local document ingest, character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
 
 ## Next
 
 - [examples/sample.txt](../examples/sample.txt) — tiny fixture for the chunk CLI
 - [examples/hybrid-docs.txt](../examples/hybrid-docs.txt) — tiny fixture for the hybrid CLI
 - [examples/ingest-sample/](../examples/ingest-sample/) — tiny multi-file fixture for the ingest CLI
+- [examples/e2e_demo.py](../examples/e2e_demo.py) — runnable end-to-end pipeline demo
 - [examples/evaluation-rubric.md](../examples/evaluation-rubric.md) — fuller human + auto rubric
 - [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md) — full design-review checklist
