@@ -47,6 +47,7 @@ Run offline gates in CI for index/prompt changes. Complement with online signals
 - 50–200 gold questions spanning happy path, keyword/ID queries, and unanswerable cases
 - Fixed corpus snapshot and model versions in the report
 - Track retrieval and groundedness as separate scores
+- Optional shared scoring sheet: [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 - Record: embedder version, index build id, prompt template id, `top_k`, reranker on/off
 
 ### Example eval row
@@ -63,5 +64,7 @@ cited: [policies/refunds.md:chunk-12]
 
 ## Next
 
+- [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
+- [09 — Citations and grounding](09-citations-and-grounding.md)
 - [05 — Production](05-production.md)
 - [08 — Anti-patterns](08-anti-patterns.md)
