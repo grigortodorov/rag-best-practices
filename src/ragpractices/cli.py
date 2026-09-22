@@ -7,13 +7,16 @@ import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from ragpractices import __version__
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
+from ragpractices.citations import attach_citations
 from ragpractices.hybrid import hybrid_search
 from ragpractices.ingest import load_path, save_corpus_jsonl
+from ragpractices.rerank import mmr_rerank, rerank
+from ragpractices.rewrite import multi_query, rewrite_query
 from ragpractices.rubric import DIMENSIONS, format_scorecard, score_answer
 
 
@@ -58,6 +61,75 @@ def _load_hybrid_docs(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     parts = [p.strip() for p in text.split("\n---\n")]
     return [p for p in parts if p]
+
+
+def _load_answer(spec: str) -> str:
+    """Load answer text from a path if it exists, else treat as literal string."""
+    path = Path(spec)
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    return spec
+
+
+def _load_cite_sources(path: Path) -> list[dict[str, Any]]:
+    """Load sources from JSONL (id+text), JSON list, or hybrid-docs (--- separated)."""
+    raw = path.read_text(encoding="utf-8")
+    suffix = path.suffix.lower()
+
+    if suffix == ".jsonl":
+        sources: list[dict[str, Any]] = []
+        for i, line in enumerate(raw.splitlines()):
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if not isinstance(obj, dict):
+                raise ValueError(f"JSONL line {i + 1} must be an object")
+            if "id" not in obj:
+                obj = {**obj, "id": f"doc-{i}"}
+            if "text" not in obj and "document" not in obj and "snippet" not in obj:
+                raise ValueError(
+                    f"JSONL line {i + 1} needs text/document/snippet field"
+                )
+            sources.append(obj)
+        return sources
+
+    if suffix == ".json":
+        data = json.loads(raw)
+        if isinstance(data, list):
+            out: list[dict[str, Any]] = []
+            for i, item in enumerate(data):
+                if isinstance(item, str):
+                    out.append({"id": f"doc-{i}", "text": item})
+                elif isinstance(item, dict):
+                    if "id" not in item:
+                        item = {**item, "id": f"doc-{i}"}
+                    out.append(item)
+                else:
+                    raise ValueError(f"JSON list item {i} must be str or object")
+            return out
+        if isinstance(data, dict) and "sources" in data:
+            return _normalize_sources_list(data["sources"])
+        raise ValueError("JSON sources must be a list or {\"sources\": [...]}")
+
+    # Hybrid-docs style: documents separated by \n---\n with generated ids
+    docs = _load_hybrid_docs(path)
+    return [{"id": f"doc-{i}", "text": d} for i, d in enumerate(docs)]
+
+
+def _normalize_sources_list(items: list[Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for i, item in enumerate(items):
+        if isinstance(item, str):
+            out.append({"id": f"doc-{i}", "text": item})
+        elif isinstance(item, dict):
+            row = dict(item)
+            if "id" not in row:
+                row["id"] = f"doc-{i}"
+            out.append(row)
+        else:
+            raise ValueError(f"source item {i} must be str or object")
+    return out
 
 
 def cmd_chunk(args: argparse.Namespace) -> int:
@@ -116,7 +188,6 @@ def cmd_hybrid(args: argparse.Namespace) -> int:
     return 0
 
 
-
 def cmd_ingest(args: argparse.Namespace) -> int:
     docs = load_path(args.path, glob=args.glob)
     summary = [
@@ -150,10 +221,57 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rewrite(args: argparse.Namespace) -> int:
+    if args.multi:
+        variants = multi_query(args.query)
+        json.dump({"query": args.query, "variants": variants}, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0
+    result = rewrite_query(args.query, mode=args.mode)
+    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+    sys.stdout.write("\n")
+    return 0
+
+
+def cmd_rerank(args: argparse.Namespace) -> int:
+    documents = _load_hybrid_docs(Path(args.docs))
+    top_k = args.top if args.top is not None else None
+    if args.mmr:
+        k = top_k if top_k is not None else 5
+        results = mmr_rerank(
+            args.query,
+            documents,
+            lambda_mult=args.lambda_mult,
+            top_k=k,
+        )
+    else:
+        results = rerank(args.query, documents, top_k=top_k)
+    json.dump(results, sys.stdout, ensure_ascii=False, indent=2)
+    sys.stdout.write("\n")
+    return 0
+
+
+def cmd_cite(args: argparse.Namespace) -> int:
+    answer = _load_answer(args.answer)
+    sources = _load_cite_sources(Path(args.sources))
+    result = attach_citations(answer, sources, style=args.style)
+    if args.json:
+        json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(result["full_text"])
+        if not result["full_text"].endswith("\n"):
+            sys.stdout.write("\n")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ragpractices",
-        description="Toolkit helpers for RAG chunking, ingest, hybrid search, scoring, and checklists.",
+        description=(
+            "Toolkit helpers for RAG chunking, ingest, hybrid search, "
+            "rewrite, rerank, citations, scoring, and checklists."
+        ),
     )
     parser.add_argument(
         "--version",
@@ -250,7 +368,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_hybrid.set_defaults(func=cmd_hybrid)
 
-
     p_ingest = sub.add_parser(
         "ingest",
         help="Load text/Markdown files into a corpus (summary or JSONL)",
@@ -275,6 +392,85 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write full corpus JSONL to stdout (instead of a summary table)",
     )
     p_ingest.set_defaults(func=cmd_ingest)
+
+    p_rewrite = sub.add_parser(
+        "rewrite",
+        help="Deterministic query rewrite / multi-query variants (no LLM)",
+    )
+    p_rewrite.add_argument("query", help="Query string to rewrite")
+    p_rewrite.add_argument(
+        "--mode",
+        choices=("expand", "clarify", "hyphenate_split"),
+        default="expand",
+        help="Rewrite mode (default: expand)",
+    )
+    p_rewrite.add_argument(
+        "--multi",
+        action="store_true",
+        help="Emit 2–3 multi-query variants instead of a single rewrite",
+    )
+    p_rewrite.set_defaults(func=cmd_rewrite)
+
+    p_rerank = sub.add_parser(
+        "rerank",
+        help="Rerank documents by keyword overlap or MMR",
+    )
+    p_rerank.add_argument("query", help="Query string")
+    p_rerank.add_argument(
+        "--docs",
+        required=True,
+        help="Path to a UTF-8 text file with documents separated by \\n---\\n",
+    )
+    p_rerank.add_argument(
+        "--mmr",
+        action="store_true",
+        help="Use Maximal Marginal Relevance instead of keyword blend",
+    )
+    p_rerank.add_argument(
+        "--top",
+        type=int,
+        default=None,
+        metavar="K",
+        help="Return only the top K results (MMR default: 5)",
+    )
+    p_rerank.add_argument(
+        "--lambda-mult",
+        type=float,
+        default=0.7,
+        dest="lambda_mult",
+        help="MMR lambda in [0, 1] (default: 0.7)",
+    )
+    p_rerank.set_defaults(func=cmd_rerank)
+
+    p_cite = sub.add_parser(
+        "cite",
+        help="Attach inline citations and a Sources appendix to an answer",
+    )
+    p_cite.add_argument(
+        "--answer",
+        required=True,
+        help="Answer text, or path to a UTF-8 file containing the answer",
+    )
+    p_cite.add_argument(
+        "--sources",
+        required=True,
+        help=(
+            "Path to sources: JSONL (id+text), JSON list, or hybrid-docs "
+            "file (--- separated, ids generated)"
+        ),
+    )
+    p_cite.add_argument(
+        "--style",
+        choices=("numeric", "bracketed"),
+        default="numeric",
+        help="Citation style (default: numeric)",
+    )
+    p_cite.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit answer/sources_block/full_text as JSON",
+    )
+    p_cite.set_defaults(func=cmd_cite)
 
     return parser
 
