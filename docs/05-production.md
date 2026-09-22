@@ -59,6 +59,11 @@ Retrieved text may contain instructions ("ignore previous..."). Mitigations:
 
 Never embed API keys or credentials into tool arguments, logs, or chunk text. Use allowlisted tools and server-side credentials.
 
+### Computer-use / GUI agents
+
+If the agent drives a browser or desktop UI (not only typed MCP tools), apply the same fail-closed and allowlist mindset: confirm destructive actions, never scrape secrets from the screen, and prefer APIs/MCP when they exist. See [12 — Computer-use tools](12-computer-use-tools.md) and [examples/computer-use-checklist.md](../examples/computer-use-checklist.md).
+
+
 ## Reliability patterns
 
 - **Fail closed** on empty or below-threshold retrieval: abstain rather than hallucinate
@@ -70,3 +75,4 @@ Never embed API keys or credentials into tool arguments, logs, or chunk text. Us
 - [06 — RAG principles](06-rag-principles.md)
 - [07 — MCP tools for RAG](07-mcp-tools-for-rag.md)
 - [08 — Anti-patterns](08-anti-patterns.md)
+- [12 — Computer-use tools](12-computer-use-tools.md)
