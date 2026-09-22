@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice chunking, try a hybrid (keyword + dense) search stub, score answers with a simple rubric, and print a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, try a hybrid (keyword + dense) search stub, score answers with a simple rubric, and print a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.2.0+`).
+Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.3.0+`).
 
 ## Library API
 
@@ -28,6 +28,13 @@ Import name: `ragpractices`.
 ```python
 from ragpractices import (
     __version__,
+    Document,
+    load_text_file,
+    load_markdown_file,
+    load_path,
+    corpus_to_hybrid_docs,
+    save_corpus_jsonl,
+    load_corpus_jsonl,
     chunk_text,
     chunk_by_headings,
     keyword_score,
@@ -39,6 +46,41 @@ from ragpractices import (
     get_checklist,
     DIMENSIONS,
 )
+```
+
+### Document ingest
+
+Load local UTF-8 `.txt` / `.md` files into a small corpus, optionally strip Markdown YAML front matter, and serialize as JSONL.
+
+#### `Document`
+
+Dataclass with fields: `id` (str), `path` (str), `text` (str), `meta` (dict).
+
+#### `load_text_file(path) -> Document`
+
+Reads UTF-8 text. `id` is the file stem (or a path relative to the directory root when loaded via `load_path`).
+
+#### `load_markdown_file(path) -> Document`
+
+Same as text, but a leading `---` … `---` YAML front-matter block is stripped into `meta` (flat `key: value` lines only).
+
+#### `load_path(path, *, glob=None) -> list[Document]`
+
+File or directory. Directory default globs: `**/*.txt` and `**/*.md`. Skips hidden paths and common folders (`.venv`, `venv`, `__pycache__`, `node_modules`, …). Custom `--glob` / `glob=` overrides the default patterns.
+
+#### `corpus_to_hybrid_docs(docs) -> list[str]`
+
+Plain text list for `hybrid_search`.
+
+#### `save_corpus_jsonl(docs, path)` / `load_corpus_jsonl(path)`
+
+One JSON object per line (`id`, `path`, `text`, `meta`).
+
+```python
+from ragpractices import load_path, corpus_to_hybrid_docs, hybrid_search
+
+docs = load_path("examples/ingest-sample")
+hits = hybrid_search("refund shipping", corpus_to_hybrid_docs(docs), fusion="rrf")
 ```
 
 ### `chunk_text(text, chunk_size=800, overlap=100) -> list[str]`
@@ -129,6 +171,16 @@ ragpractices hybrid "shipping" --docs examples/hybrid-docs.txt --fusion weighted
 
 Optional `--dense path.json` supplies a JSON list of floats (same length as documents). `--alpha` applies to weighted fusion; `--rrf-k` to RRF.
 
+### Ingest a file or directory
+
+Default prints a short summary table (`id`, `chars`, `path`). Use `--out` for a full JSONL corpus; `--stdout` for JSONL on stdout.
+
+```bash
+ragpractices ingest examples/ingest-sample
+ragpractices ingest examples/ingest-sample --out /tmp/corpus.jsonl
+ragpractices ingest examples/ingest-sample --glob '**/*.md' --stdout
+```
+
 ### Score an answer
 
 ```bash
@@ -159,11 +211,12 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: character/heading chunking, a hybrid search *stub* (not a production retriever), and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
+This toolkit is intentionally small: local document ingest, character/heading chunking, a hybrid search *stub* (not a production retriever), and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
 
 ## Next
 
 - [examples/sample.txt](../examples/sample.txt) — tiny fixture for the chunk CLI
 - [examples/hybrid-docs.txt](../examples/hybrid-docs.txt) — tiny fixture for the hybrid CLI
+- [examples/ingest-sample/](../examples/ingest-sample/) — tiny multi-file fixture for the ingest CLI
 - [examples/evaluation-rubric.md](../examples/evaluation-rubric.md) — fuller human + auto rubric
 - [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md) — full design-review checklist
