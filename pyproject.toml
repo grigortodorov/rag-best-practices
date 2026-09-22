@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragpractices"
-version = "0.1.0"
-description = "Small toolkit helpers for RAG chunking, answer rubrics, and design checklists."
+version = "0.2.0"
+description = "Small toolkit helpers for RAG chunking, hybrid search stubs, answer rubrics, and design checklists."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
   { name = "grigortodorov" },
 ]
-keywords = ["rag", "chunking", "evaluation", "checklist"]
+keywords = ["rag", "chunking", "hybrid-search", "retrieval", "evaluation", "checklist"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -50,3 +50,6 @@ include = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragpractices"]
