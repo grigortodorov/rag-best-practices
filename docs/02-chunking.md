@@ -85,11 +85,14 @@ Metadata enables filtering, citations, and security later.
 ## Practical defaults (starting point, not gospel)
 
 - Start with **structure-aware** splits, then **max token cap** (e.g. 256–512 tokens) with small overlap
+- See [examples/chunking-heuristics.md](../examples/chunking-heuristics.md) for size/overlap starting points by content type
 - Tune using **retrieval eval** (see [04-evaluation.md](04-evaluation.md)), not gut feel alone
 - Chunk for the **questions users ask**, not only for document type
 - Revisit chunking when Recall@k plateaus but humans say "the answer is in the doc"
 
 ## Next
 
+- [examples/chunking-heuristics.md](../examples/chunking-heuristics.md)
+- [10 — Multimodal and tables](10-multimodal-and-tables.md)
 - [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md)
 - [08 — Anti-patterns](08-anti-patterns.md)
