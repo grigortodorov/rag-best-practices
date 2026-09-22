@@ -11,6 +11,7 @@ from typing import Sequence
 from ragpractices import __version__
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
+from ragpractices.hybrid import hybrid_search
 from ragpractices.rubric import DIMENSIONS, format_scorecard, score_answer
 
 
@@ -51,6 +52,12 @@ def _prompt_scores() -> dict[str, int]:
     return scores
 
 
+def _load_hybrid_docs(path: Path) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    parts = [p.strip() for p in text.split("\n---\n")]
+    return [p for p in parts if p]
+
+
 def cmd_chunk(args: argparse.Namespace) -> int:
     path = Path(args.path)
     text = path.read_text(encoding="utf-8")
@@ -81,10 +88,36 @@ def cmd_checklist(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hybrid(args: argparse.Namespace) -> int:
+    docs_path = Path(args.docs)
+    documents = _load_hybrid_docs(docs_path)
+    dense_scores: list[float] | None = None
+    if args.dense:
+        dense_raw = json.loads(Path(args.dense).read_text(encoding="utf-8"))
+        if not isinstance(dense_raw, list):
+            raise ValueError("--dense must be a JSON list of floats")
+        dense_scores = [float(x) for x in dense_raw]
+
+    results = hybrid_search(
+        args.query,
+        documents,
+        dense_scores,
+        rrf_k=args.rrf_k,
+        alpha=args.alpha,
+        fusion=args.fusion,
+    )
+    top = max(0, args.top)
+    if top:
+        results = results[:top]
+    json.dump(results, sys.stdout, ensure_ascii=False, indent=2)
+    sys.stdout.write("\n")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ragpractices",
-        description="Toolkit helpers for RAG chunking, scoring, and checklists.",
+        description="Toolkit helpers for RAG chunking, hybrid search, scoring, and checklists.",
     )
     parser.add_argument(
         "--version",
@@ -140,6 +173,47 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_check.set_defaults(func=cmd_checklist)
 
+    p_hybrid = sub.add_parser(
+        "hybrid",
+        help="Hybrid (keyword + optional dense) search over a docs file",
+    )
+    p_hybrid.add_argument("query", help="Search query string")
+    p_hybrid.add_argument(
+        "--docs",
+        required=True,
+        help="Path to a UTF-8 text file with documents separated by \\n---\\n",
+    )
+    p_hybrid.add_argument(
+        "--dense",
+        help="Optional path to a JSON list of floats (same length as documents)",
+    )
+    p_hybrid.add_argument(
+        "--fusion",
+        choices=("rrf", "weighted"),
+        default="rrf",
+        help="Fusion mode (default: rrf)",
+    )
+    p_hybrid.add_argument(
+        "--alpha",
+        type=float,
+        default=0.5,
+        help="Dense weight for weighted fusion in [0, 1] (default: 0.5)",
+    )
+    p_hybrid.add_argument(
+        "--rrf-k",
+        type=int,
+        default=60,
+        help="RRF smoothing k (default: 60)",
+    )
+    p_hybrid.add_argument(
+        "--top",
+        type=int,
+        default=0,
+        metavar="K",
+        help="Return only the top K results (default: all)",
+    )
+    p_hybrid.set_defaults(func=cmd_hybrid)
+
     return parser
 
 
@@ -148,7 +222,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         return int(args.func(args))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
