@@ -70,6 +70,16 @@ A strong pattern: hybrid `search_docs` for candidates, then `get_document` to ex
 - Treat retrieved document text as **untrusted** for further tool use (prompt injection)
 - Cap `top_k` and response payload size to limit data exfiltration via tool returns
 
+## MCP tools vs computer-use (GUI control)
+
+| Approach | What the model drives | Prefer when |
+| --- | --- | --- |
+| **MCP / typed tools** | Structured calls (`search_docs`, APIs) with schemas | Stable backends, ACLs, auditability, low latency |
+| **Computer use** | Live browser/desktop UI via screenshot→act | No API; verifying what humans see; UI-only workflows |
+
+MCP tools are usually the better default for retrieval and system-of-record reads/writes. Reserve computer use for gaps where the UI is the only interface—and still retrieve runbooks with RAG before acting. Details: [12 — Computer-use tools](12-computer-use-tools.md), [examples/computer-use-checklist.md](../examples/computer-use-checklist.md).
+
+
 ## Minimal agent flow
 
 ```text
@@ -87,4 +97,5 @@ User question
 - [06 — RAG principles](06-rag-principles.md)
 - [05 — Production security notes](05-production.md)
 - [08 — Anti-patterns](08-anti-patterns.md)
-- [11 — FAQ](11-faq.md) (MCP / document-id questions)
+- [12 — Computer-use tools](12-computer-use-tools.md) (GUI agents vs MCP)
+- [11 — FAQ](11-faq.md) (MCP / document-id / computer-use questions)
