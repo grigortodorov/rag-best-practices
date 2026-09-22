@@ -1,0 +1,48 @@
+name: Doc improvement
+description: Suggest a fix, clarification, or new section for the RAG guides
+title: "[docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve this educational guide. Please keep suggestions practical and accurate—no fabricated metrics or eligibility claims.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where does this apply?
+      options:
+        - README / navigation
+        - docs/01–05 (overview, chunking, retrieval, eval, production)
+        - docs/06–08 (principles, MCP, anti-patterns)
+        - docs/09–11 (citations, multimodal, FAQ)
+        - examples/
+        - templates / contributing / code of conduct
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What should change?
+      description: Gap, outdated advice, unclear wording, or missing example.
+      placeholder: e.g. Chunking doc should mention row-level table heuristics…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction (optional)
+      description: Sketch of the fix or link to a draft.
+    validations:
+      required: false
+  - type: checkboxes
+    id: guidelines
+    attributes:
+      label: Content guidelines
+      options:
+        - label: I will not include secrets, API keys, or real customer data
+          required: true
+        - label: I will not invent stars, downloads, dependents, or vendor eligibility claims
+          required: true
