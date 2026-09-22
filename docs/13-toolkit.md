@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, try a hybrid (keyword + dense) search stub, score answers with a simple rubric, and print a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, citation formatting, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.3.0+`).
+Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.4.0+`).
 
 ## Library API
 
@@ -41,6 +41,14 @@ from ragpractices import (
     normalize_scores,
     reciprocal_rank_fusion,
     hybrid_search,
+    rewrite_query,
+    multi_query,
+    rerank,
+    mmr_rerank,
+    Citation,
+    format_inline_citations,
+    build_sources_block,
+    attach_citations,
     score_answer,
     format_scorecard,
     get_checklist,
@@ -128,6 +136,81 @@ hits = hybrid_search("refund shipping", docs, fusion="rrf")
 # → ranked list; keyword overlap prefers refund/shipping docs
 ```
 
+### Query rewrite stubs
+
+Deterministic heuristics (no LLM). Modes: `expand`, `clarify`, `hyphenate_split`.
+
+#### `rewrite_query(query, *, mode="expand") -> dict`
+
+Returns `original`, `rewritten`, `mode`, `notes`. Expand also includes `keywords` (stopword-trimmed).
+
+- **expand** — keep original tokens and add synonym-ish expansions for common ops words (`refund`↔`return`, `ship`/`shipping`↔`delivery`, `password`↔`auth`/`authentication`)
+- **clarify** — if the query has fewer than 4 tokens, append `(looking for policy details)`; otherwise return the cleaned query
+- **hyphenate_split** — split `camelCase`, hyphenated, and underscored tokens
+
+#### `multi_query(query) -> list[str]`
+
+Returns 2–3 deduplicated variants: cleaned original, expand rewrite, and a keyword-only join — handy for multi-query retrieval demos.
+
+```python
+from ragpractices import rewrite_query, multi_query
+
+rewrite_query("refund ship", mode="expand")
+# → rewritten includes return/delivery; keywords list without stopwords
+
+multi_query("refund ship")
+# → ["refund ship", "refund return … ship shipping delivery", "refund return …"]
+```
+
+### Rerank stubs
+
+#### `rerank(query, documents, *, scores=None, top_k=None) -> list[dict]`
+
+Blends normalized keyword-overlap with the query and optional incoming scores (`0.5 / 0.5` when scores are provided). Each result: `{"index", "score", "document"}`, best first.
+
+#### `mmr_rerank(query, documents, *, lambda_mult=0.7, top_k=5) -> list[dict]`
+
+Simple Maximal Marginal Relevance using token Jaccard as similarity (deterministic). Higher `lambda_mult` favors relevance over diversity.
+
+```python
+from ragpractices import rerank, mmr_rerank
+
+docs = ["Refund within 30 days.", "Shipping 5-7 days.", "Password reset."]
+rerank("refund", docs, top_k=2)
+mmr_rerank("refund shipping", docs, lambda_mult=0.7, top_k=2)
+```
+
+### Citation formatter
+
+Helpers to format grounded answers with inline citations and a Sources appendix. Related: [09 — Citations and grounding](09-citations-and-grounding.md).
+
+#### `Citation`
+
+Dataclass: `id`, optional `title` / `snippet` / `score` / `meta`. `Citation.from_dict(...)` accepts loose retrieved dicts (`id`/`index`, `document`/`text`).
+
+#### `format_inline_citations(answer, sources, *, style="numeric"|"bracketed") -> str`
+
+- **numeric** — replace `[n]` with `(n)`; if no markers, append `(1) (2) …`
+- **bracketed** — replace `[@id]` with `[id]`; if none, append `[id]` for each source
+
+#### `build_sources_block(sources, *, style="numeric") -> str`
+
+Renders a `Sources:` appendix (`(1) title — snippet` or `[id] …`).
+
+#### `attach_citations(answer, retrieved, *, style="numeric") -> dict`
+
+Returns `{"answer", "sources_block", "full_text"}`.
+
+```python
+from ragpractices import attach_citations
+
+retrieved = [
+    {"id": "doc-0", "document": "Refund within 30 days.", "score": 0.9},
+    {"id": "doc-1", "text": "Shipping takes 5-7 days."},
+]
+attach_citations("Refunds are within 30 days [1].", retrieved, style="numeric")
+```
+
 ### `score_answer(scores: dict[str, int]) -> dict`
 
 Dimensions (each `0` / `1` / `2`):
@@ -181,6 +264,35 @@ ragpractices ingest examples/ingest-sample --out /tmp/corpus.jsonl
 ragpractices ingest examples/ingest-sample --glob '**/*.md' --stdout
 ```
 
+### Rewrite a query / multi-query
+
+```bash
+ragpractices rewrite "refund ship" --mode expand
+ragpractices rewrite "refund" --mode clarify
+ragpractices rewrite "orderID password-reset" --mode hyphenate_split
+ragpractices rewrite "refund ship" --multi
+```
+
+### Rerank documents
+
+Same docs file format as hybrid (`---` separators):
+
+```bash
+ragpractices rerank "refund" --docs examples/hybrid-docs.txt --top 3
+ragpractices rerank "refund shipping" --docs examples/hybrid-docs.txt --mmr --top 3
+```
+
+### Attach citations
+
+`--answer` may be literal text or a file path. `--sources` accepts JSONL (`id` + `text`), a JSON list, or a hybrid-docs file (ids generated as `doc-0`, …).
+
+```bash
+ragpractices cite --answer "Refunds are within 30 days [1]." \
+  --sources examples/hybrid-docs.txt --style numeric
+ragpractices cite --answer "See the policy." --sources /tmp/corpus.jsonl \
+  --style bracketed --json
+```
+
 ### Score an answer
 
 ```bash
@@ -211,7 +323,7 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: local document ingest, character/heading chunking, a hybrid search *stub* (not a production retriever), and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
+This toolkit is intentionally small: local document ingest, character/heading chunking, hybrid search / rewrite / rerank *stubs* (not a production retriever), citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
 
 ## Next
 
