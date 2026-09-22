@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, offline retrieval eval, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, offline retrieval eval, strategy compare, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Package name: `ragpractices` (version `0.6.0+`). GitHub Actions CI runs `unittest` on push/PR to `main`.
+Requires Python 3.10+. Package name: `ragpractices` (version `0.7.0+`). GitHub Actions CI runs `unittest` plus a retrieval hit-rate gate on push/PR to `main`.
 
 ## Library API
 
@@ -32,6 +32,9 @@ from ragpractices import (
     load_text_file,
     load_markdown_file,
     load_path,
+    load_html_file,
+    html_to_text,
+    content_hash,
     corpus_to_hybrid_docs,
     save_corpus_jsonl,
     load_corpus_jsonl,
@@ -61,6 +64,11 @@ from ragpractices import (
     mrr,
     evaluate_retrieval,
     load_golden_jsonl,
+    CompareReport,
+    compare_strategies,
+    build_grounded_prompt,
+    build_clarify_prompt,
+    filter_docs,
     AbstainResult,
     should_answer,
     PipelineResult,
@@ -79,7 +87,7 @@ from ragpractices import (
 
 ### Document ingest
 
-Load local UTF-8 `.txt` / `.md` files into a small corpus, optionally strip Markdown YAML front matter, and serialize as JSONL.
+Load local UTF-8 `.txt` / `.md` / `.html` files into a small corpus, optionally strip Markdown YAML front matter, extract HTML text, attach a stable `content_hash`, and serialize as JSONL.
 
 #### `Document`
 
@@ -95,7 +103,7 @@ Same as text, but a leading `---` … `---` YAML front-matter block is stripped 
 
 #### `load_path(path, *, glob=None) -> list[Document]`
 
-File or directory. Directory default globs: `**/*.txt` and `**/*.md`. Skips hidden paths and common folders (`.venv`, `venv`, `__pycache__`, `node_modules`, …). Custom `--glob` / `glob=` overrides the default patterns.
+File or directory. Directory default globs: `**/*.txt`, `**/*.md`, and `**/*.html`. Skips hidden paths and common folders (`.venv`, `venv`, `__pycache__`, `node_modules`, …). Custom `--glob` / `glob=` overrides the default patterns. HTML uses `html.parser` extraction; each doc `meta` gets `content_hash` (sha256 of text).
 
 #### `corpus_to_hybrid_docs(docs) -> list[str]`
 
@@ -326,6 +334,33 @@ Educational hit@k and MRR against a golden set. **Not** a substitute for human j
 - `flag_chunks(texts, *, min_chars=20, max_chars=4000) -> list[ChunkIssue]`
 - `dedupe_near(texts, *, threshold=0.9) -> DedupeResult`
 
+
+### HTML ingest + content hashing
+
+- `html_to_text(html) -> str` — visible text via stdlib `html.parser` (skips script/style)
+- `load_html_file(path) -> Document` — extracted text + `meta.content_type` / `meta.content_hash` / optional `title`
+- `content_hash(text) -> str` — stable sha256 hex (also attached on text/Markdown ingest)
+
+### Strategy compare
+
+- `compare_strategies(cases, docs, *, k=3) -> CompareReport`
+- Strategies: `keyword`, `hybrid`, `rewrite_hybrid`, `hybrid_rerank`
+- Reuses `hit_at_k` / `mrr` from `ragpractices.eval`; includes a simple ranking (hit@k then MRR)
+
+### Grounded prompt templates
+
+Templates only — **no API calls**.
+
+- `build_grounded_prompt(question, contexts, *, style="cite"|"abstain", max_context_chars=6000) -> str`
+- `build_clarify_prompt(question, missing_hints=...) -> str`
+
+### Metadata filter + ACL
+
+- `filter_docs(docs, *, tags=None, tenant=None, roles=None) -> list`
+- Fail-closed ACL: when `roles` is provided, docs with a non-empty `acl` are kept only if role sets intersect
+- Tenant mismatch drops the doc; optional tag intersection
+- Pipeline configs may include a top-level `"filter": {"tags": [...], "tenant": "...", "roles": [...]}`
+
 ## CLI
 
 Entry point: `ragpractices`.
@@ -356,6 +391,7 @@ Default prints a short summary table (`id`, `chars`, `path`). Use `--out` for a 
 ragpractices ingest examples/ingest-sample
 ragpractices ingest examples/ingest-sample --out /tmp/corpus.jsonl
 ragpractices ingest examples/ingest-sample --glob '**/*.md' --stdout
+ragpractices ingest examples/ingest-sample/faq.html
 ```
 
 ### Rewrite a query / multi-query
@@ -412,6 +448,42 @@ ragpractices ground --answer "We ship unicorns tomorrow." \
 ```bash
 ragpractices eval --golden examples/golden-retrieval.jsonl \
   --docs examples/hybrid-docs.txt --k 3
+ragpractices eval --golden examples/golden-retrieval.jsonl \
+  --docs examples/hybrid-docs.txt --k 3 --min-hit-rate 0.6
+```
+
+`--min-hit-rate` / `--min-mrr` exit with code `1` when the aggregate is below the threshold (useful as a CI gate).
+
+### Strategy compare
+
+```bash
+ragpractices compare --golden examples/golden-retrieval.jsonl \
+  --docs examples/hybrid-docs.txt --k 3
+ragpractices compare --golden examples/golden-retrieval.jsonl \
+  --docs examples/hybrid-docs.txt --k 3 --json
+```
+
+### Grounded / clarify prompts
+
+```bash
+ragpractices prompt --question "What is the refund window?" \
+  --docs examples/hybrid-docs.txt --style cite
+ragpractices prompt --question "refund?" --clarify --missing "order id,date"
+```
+
+### Metadata / ACL filter
+
+```bash
+ragpractices filter --docs examples/acl-docs.jsonl --tenant acme --roles public --tags refund
+ragpractices filter --docs examples/acl-docs.jsonl --roles support --json
+```
+
+### HTML extract
+
+```bash
+ragpractices html examples/ingest-sample/faq.html
+ragpractices html examples/ingest-sample/faq.html --hash-only
+ragpractices ingest examples/ingest-sample/faq.html
 ```
 
 ### Fail-closed decide
@@ -473,13 +545,16 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: local document ingest, character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
+This toolkit is intentionally small: local document ingest (incl. HTML), character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers and strategy compare, prompt templates, metadata/ACL filters, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md). See also [CHANGELOG.md](../CHANGELOG.md).
 
 ## Next
 
 - [examples/sample.txt](../examples/sample.txt) — tiny fixture for the chunk CLI
 - [examples/hybrid-docs.txt](../examples/hybrid-docs.txt) — tiny fixture for the hybrid CLI
-- [examples/ingest-sample/](../examples/ingest-sample/) — tiny multi-file fixture for the ingest CLI
+- [examples/ingest-sample/](../examples/ingest-sample/) — tiny multi-file fixture for the ingest CLI (incl. `faq.html`)
+- [examples/acl-docs.jsonl](../examples/acl-docs.jsonl) — ACL / tenant / tag fixture
+- [examples/golden-retrieval.jsonl](../examples/golden-retrieval.jsonl) — golden retrieval cases
+- [examples/golden-retrieval-hard.jsonl](../examples/golden-retrieval-hard.jsonl) — harder golden set
 - [examples/e2e_demo.py](../examples/e2e_demo.py) — runnable end-to-end pipeline demo
 - [examples/evaluation-rubric.md](../examples/evaluation-rubric.md) — fuller human + auto rubric
 - [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md) — full design-review checklist

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragpractices"
-version = "0.6.0"
-description = "Small toolkit helpers for RAG chunking, document ingest, hybrid search stubs, query rewrite, rerank, context packing, groundedness checks, citations, offline retrieval eval, fail-closed abstain, configurable pipelines, chunk quality, answer rubrics, and design checklists."
+version = "0.7.0"
+description = "Small toolkit helpers for RAG chunking, document ingest, HTML ingest, hybrid search stubs, query rewrite, rerank, context packing, groundedness checks, citations, offline retrieval eval, strategy compare, grounded prompts, metadata/ACL filters, fail-closed abstain, configurable pipelines, chunk quality, answer rubrics, and design checklists."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -26,6 +26,7 @@ keywords = [
   "abstain",
   "pipeline",
   "checklist",
+  "strategy-compare",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -58,6 +59,7 @@ include = [
   "/examples",
   "/README.md",
   "/LICENSE",
+  "/CHANGELOG.md",
   "/pyproject.toml",
 ]
 

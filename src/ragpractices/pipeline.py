@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ragpractices.abstain import should_answer
+from ragpractices.filters import filter_docs
 from ragpractices.citations import attach_citations
 from ragpractices.groundedness import check_groundedness
 from ragpractices.hybrid import hybrid_search
@@ -107,19 +108,33 @@ def run_pipeline(
     if not isinstance(query, str) or not query.strip():
         raise ValueError("query must be a non-empty string")
 
-    # Normalize docs to id + text
-    texts: list[str] = []
-    ids: list[str] = []
+    # Normalize docs to id + text (+ optional metadata for filtering)
+    raw_docs: list[dict[str, Any]] = []
     for i, item in enumerate(docs):
         if isinstance(item, str):
-            texts.append(item)
-            ids.append(f"doc-{i}")
+            raw_docs.append({"id": f"doc-{i}", "text": item})
         elif isinstance(item, dict):
-            text = str(item.get("text") or item.get("document") or "")
-            texts.append(text)
-            ids.append(str(item.get("id", f"doc-{i}")))
+            row = dict(item)
+            if "text" not in row and "document" in row:
+                row["text"] = row["document"]
+            if "id" not in row:
+                row["id"] = f"doc-{i}"
+            raw_docs.append(row)
         else:
             raise TypeError(f"doc {i} must be str or dict")
+
+    # Optional fail-closed metadata / ACL filter from config["filter"]
+    filt = config.get("filter") or {}
+    if isinstance(filt, dict) and filt:
+        raw_docs = filter_docs(
+            raw_docs,
+            tags=filt.get("tags"),
+            tenant=filt.get("tenant"),
+            roles=filt.get("roles"),
+        )
+
+    texts = [str(d.get("text") or "") for d in raw_docs]
+    ids = [str(d.get("id", f"doc-{i}")) for i, d in enumerate(raw_docs)]
 
     stages_cfg = config.get("stages") or []
     canned_answer = str(config.get("answer") or "")

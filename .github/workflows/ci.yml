@@ -22,3 +22,11 @@ jobs:
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+
+      - name: Retrieval eval gate
+        run: >
+          ragpractices eval
+          --golden examples/golden-retrieval.jsonl
+          --docs examples/hybrid-docs.txt
+          --k 3
+          --min-hit-rate 0.6

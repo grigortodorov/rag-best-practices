@@ -6,3 +6,7 @@
 {"id": "privacy", "query": "privacy policy account data deleted", "expected_ids": ["doc-3"]}
 {"id": "express", "query": "express shipping arrives 2 business days", "expected_ids": ["doc-1"]}
 {"id": "order-id-refund", "query": "include order ID contacting support refund", "expected_ids": ["doc-0"]}
+{"id": "distractor-border", "query": "border delays recipient pays duties international", "expected_ids": ["doc-4"]}
+{"id": "distractor-reset-email", "query": "reset email never arrives contact support", "expected_ids": ["doc-2"]}
+{"id": "ambiguous-policy", "query": "account closure data storage policy", "expected_ids": ["doc-3"]}
+{"id": "near-miss-return", "query": "how long to get money back after purchase", "expected_ids": ["doc-0"]}

@@ -9,6 +9,12 @@ from ragpractices.citations import (
     build_sources_block,
     format_inline_citations,
 )
+from ragpractices.compare import (
+    CompareReport,
+    StrategyResult,
+    compare_strategies,
+    format_compare_table,
+)
 from ragpractices.eval import (
     CaseResult,
     EvalReport,
@@ -18,7 +24,9 @@ from ragpractices.eval import (
     load_golden_jsonl,
     mrr,
 )
+from ragpractices.filters import filter_docs, load_docs_jsonl
 from ragpractices.groundedness import GroundednessReport, check_groundedness
+from ragpractices.html_ingest import html_to_text, load_html_file
 from ragpractices.hybrid import (
     hybrid_search,
     keyword_score,
@@ -27,6 +35,7 @@ from ragpractices.hybrid import (
 )
 from ragpractices.ingest import (
     Document,
+    content_hash,
     corpus_to_hybrid_docs,
     load_corpus_jsonl,
     load_markdown_file,
@@ -41,6 +50,7 @@ from ragpractices.pipeline import (
     load_pipeline_config,
     run_pipeline,
 )
+from ragpractices.prompts import build_clarify_prompt, build_grounded_prompt
 from ragpractices.quality import (
     ChunkIssue,
     ChunkStats,
@@ -57,7 +67,7 @@ from ragpractices.rubric import (
     score_answer,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "DIMENSIONS",
@@ -66,6 +76,7 @@ __all__ = [
     "ChunkIssue",
     "ChunkStats",
     "Citation",
+    "CompareReport",
     "Decision",
     "DedupeResult",
     "Document",
@@ -75,26 +86,36 @@ __all__ = [
     "PackResult",
     "PipelineResult",
     "StageTrace",
+    "StrategyResult",
     "__version__",
     "attach_citations",
+    "build_clarify_prompt",
+    "build_grounded_prompt",
     "build_sources_block",
     "check_groundedness",
     "chunk_by_headings",
     "chunk_stats",
     "chunk_text",
+    "compare_strategies",
+    "content_hash",
     "corpus_to_hybrid_docs",
     "dedupe_near",
     "estimate_tokens",
     "evaluate_retrieval",
+    "filter_docs",
     "flag_chunks",
+    "format_compare_table",
     "format_inline_citations",
     "format_scorecard",
     "get_checklist",
     "hit_at_k",
+    "html_to_text",
     "hybrid_search",
     "keyword_score",
     "load_corpus_jsonl",
+    "load_docs_jsonl",
     "load_golden_jsonl",
+    "load_html_file",
     "load_markdown_file",
     "load_path",
     "load_pipeline_config",

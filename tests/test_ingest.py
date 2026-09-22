@@ -32,7 +32,8 @@ class TestLoadTextFile(unittest.TestCase):
             self.assertIsInstance(doc, Document)
             self.assertEqual(doc.id, "notes")
             self.assertEqual(doc.text, "hello world\n")
-            self.assertEqual(doc.meta, {})
+            self.assertIn("content_hash", doc.meta)
+            self.assertEqual(len(doc.meta["content_hash"]), 64)
             self.assertEqual(doc.path, str(path))
 
 
@@ -57,7 +58,7 @@ class TestLoadMarkdownFile(unittest.TestCase):
             path = Path(tmp) / "plain.md"
             path.write_text("# Title\n\nNo front matter.\n", encoding="utf-8")
             doc = load_markdown_file(path)
-            self.assertEqual(doc.meta, {})
+            self.assertIn("content_hash", doc.meta)
             self.assertIn("# Title", doc.text)
 
 

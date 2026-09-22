@@ -14,12 +14,22 @@ from ragpractices.abstain import should_answer
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
 from ragpractices.citations import attach_citations
+from ragpractices.compare import compare_strategies, format_compare_table, report_to_dict as compare_report_to_dict
 from ragpractices.eval import evaluate_retrieval, load_golden_jsonl, report_to_dict
+from ragpractices.filters import filter_docs, load_docs_jsonl
 from ragpractices.groundedness import check_groundedness
+from ragpractices.html_ingest import html_to_text, load_html_file
 from ragpractices.hybrid import hybrid_search
-from ragpractices.ingest import corpus_to_hybrid_docs, load_corpus_jsonl, load_path, save_corpus_jsonl
+from ragpractices.ingest import (
+    content_hash,
+    corpus_to_hybrid_docs,
+    load_corpus_jsonl,
+    load_path,
+    save_corpus_jsonl,
+)
 from ragpractices.packing import pack_context
 from ragpractices.pipeline import load_pipeline_config, result_to_dict, run_pipeline
+from ragpractices.prompts import build_clarify_prompt, build_grounded_prompt
 from ragpractices.quality import chunk_stats, dedupe_near, flag_chunks, stats_to_dict
 from ragpractices.rerank import mmr_rerank, rerank
 from ragpractices.rewrite import multi_query, rewrite_query
@@ -531,7 +541,20 @@ def cmd_eval(args: argparse.Namespace) -> int:
                 f"  [{c.case_id}] {mark} mrr={c.mrr:.4f} "
                 f"expected={c.expected_ids} retrieved={c.retrieved_ids[:k]}"
             )
-    return 0
+    failed = False
+    if args.min_hit_rate is not None and report.hit_at_k_rate < args.min_hit_rate:
+        print(
+            f"FAIL: hit_at_{k} {report.hit_at_k_rate:.4f} < min-hit-rate {args.min_hit_rate}",
+            file=sys.stderr,
+        )
+        failed = True
+    if args.min_mrr is not None and report.mean_mrr < args.min_mrr:
+        print(
+            f"FAIL: mean_mrr {report.mean_mrr:.4f} < min-mrr {args.min_mrr}",
+            file=sys.stderr,
+        )
+        failed = True
+    return 1 if failed else 0
 
 
 def cmd_decide(args: argparse.Namespace) -> int:
@@ -651,13 +674,133 @@ def cmd_demo(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    cases = load_golden_jsonl(args.golden)
+    documents, ids = _load_docs_with_ids(Path(args.docs))
+    docs = [{"id": i, "text": t} for i, t in zip(ids, documents)]
+    k = max(1, int(args.k))
+    report = compare_strategies(cases, docs, k=k)
+    if args.json:
+        json.dump(compare_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_compare_table(report))
+    return 0
+
+
+def cmd_prompt(args: argparse.Namespace) -> int:
+    contexts: list[str] = []
+    if args.docs:
+        documents, _ids = _load_docs_with_ids(Path(args.docs))
+        contexts = list(documents)
+    if args.clarify:
+        hints = [h.strip() for h in (args.missing or "").split(",") if h.strip()]
+        text = build_clarify_prompt(args.question, missing_hints=hints or None)
+    else:
+        text = build_grounded_prompt(
+            args.question,
+            contexts,
+            style=args.style,
+            max_context_chars=args.max_context_chars,
+        )
+    sys.stdout.write(text)
+    if not text.endswith("\n"):
+        sys.stdout.write("\n")
+    return 0
+
+
+def cmd_filter(args: argparse.Namespace) -> int:
+    path = Path(args.docs)
+    if path.suffix.lower() == ".jsonl":
+        docs = load_docs_jsonl(path)
+    else:
+        documents, ids = _load_docs_with_ids(path)
+        docs = [{"id": i, "text": t} for i, t in zip(ids, documents)]
+    tags = [t.strip() for t in (args.tags or "").split(",") if t.strip()] or None
+    roles = [r.strip() for r in (args.roles or "").split(",") if r.strip()] or None
+    filtered = filter_docs(
+        docs,
+        tags=tags,
+        tenant=args.tenant,
+        roles=roles,
+    )
+    if args.json:
+        json.dump(filtered, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"kept {len(filtered)}/{len(docs)}")
+        for d in filtered:
+            tags_s = ",".join(_as_list_cli(d.get("tags")))
+            acl_s = ",".join(_as_list_cli(d.get("acl")))
+            print(
+                f"  {d.get('id')}\ttenant={d.get('tenant', '')}\t"
+                f"tags={tags_s}\tacl={acl_s}"
+            )
+    return 0
+
+
+def _as_list_cli(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple)):
+        return [str(x) for x in value]
+    return [str(value)]
+
+
+def cmd_html(args: argparse.Namespace) -> int:
+    path = Path(args.path)
+    if args.hash_only:
+        raw = path.read_text(encoding="utf-8")
+        if path.suffix.lower() in {".html", ".htm"}:
+            text = html_to_text(raw)
+        else:
+            text = raw
+        print(content_hash(text))
+        return 0
+    doc = load_html_file(path) if path.suffix.lower() in {".html", ".htm"} else None
+    if doc is None:
+        # Allow hashing / text dump of non-html via html_to_text if looks like html
+        raw = path.read_text(encoding="utf-8")
+        text = html_to_text(raw)
+        payload = {
+            "id": path.stem,
+            "path": str(path),
+            "text": text,
+            "meta": {"content_hash": content_hash(text), "content_type": "html"},
+        }
+    else:
+        payload = {
+            "id": doc.id,
+            "path": doc.path,
+            "text": doc.text,
+            "meta": dict(doc.meta),
+        }
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"id: {payload['id']}")
+        print(f"path: {payload['path']}")
+        print(f"chars: {len(payload['text'])}")
+        print(f"content_hash: {payload['meta'].get('content_hash', '')}")
+        print("---")
+        sys.stdout.write(payload["text"])
+        if not str(payload["text"]).endswith("\n"):
+            sys.stdout.write("\n")
+    return 0
+
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ragpractices",
         description=(
             "Toolkit helpers for RAG chunking, ingest, hybrid search, "
             "rewrite, rerank, packing, groundedness, citations, "
-            "offline eval, abstain, pipelines, quality, "
+            "offline eval, strategy compare, prompts, filters, "
+            "HTML ingest, abstain, pipelines, quality, "
             "scoring, and checklists."
         ),
     )
@@ -762,7 +905,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_ingest.add_argument(
         "path",
-        help="File or directory to ingest (UTF-8 .txt / .md by default)",
+        help="File or directory to ingest (UTF-8 .txt / .md / .html by default)",
     )
     p_ingest.add_argument(
         "--out",
@@ -772,7 +915,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_ingest.add_argument(
         "--glob",
         metavar="PATTERN",
-        help="Glob under a directory (default: **/*.txt and **/*.md)",
+        help="Glob under a directory (default: **/*.txt, **/*.md, **/*.html)",
     )
     p_ingest.add_argument(
         "--stdout",
@@ -982,6 +1125,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit full EvalReport as JSON",
     )
+    p_eval.add_argument(
+        "--min-hit-rate",
+        type=float,
+        default=None,
+        dest="min_hit_rate",
+        help="Exit 1 if hit@k rate is below this threshold",
+    )
+    p_eval.add_argument(
+        "--min-mrr",
+        type=float,
+        default=None,
+        dest="min_mrr",
+        help="Exit 1 if mean MRR is below this threshold",
+    )
     p_eval.set_defaults(func=cmd_eval)
 
     p_decide = sub.add_parser(
@@ -1099,6 +1256,122 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit kept/dropped as JSON",
     )
     p_dedupe.set_defaults(func=cmd_dedupe)
+
+    p_compare = sub.add_parser(
+        "compare",
+        help="Compare retrieval strategies (keyword / hybrid / rewrite_hybrid / hybrid_rerank)",
+    )
+    p_compare.add_argument(
+        "--golden",
+        required=True,
+        help="Path to golden cases JSONL",
+    )
+    p_compare.add_argument(
+        "--docs",
+        required=True,
+        help="Docs path: hybrid-docs, corpus JSONL, or ingest directory",
+    )
+    p_compare.add_argument(
+        "--k",
+        type=int,
+        default=3,
+        help="hit@k cutoff (default: 3)",
+    )
+    p_compare.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit CompareReport as JSON",
+    )
+    p_compare.set_defaults(func=cmd_compare)
+
+    p_prompt = sub.add_parser(
+        "prompt",
+        help="Build grounded-answer or clarify prompt templates (no API calls)",
+    )
+    p_prompt.add_argument(
+        "--question",
+        required=True,
+        help="User question",
+    )
+    p_prompt.add_argument(
+        "--docs",
+        default=None,
+        help="Optional docs path for context (hybrid-docs / JSONL / directory)",
+    )
+    p_prompt.add_argument(
+        "--style",
+        choices=("cite", "abstain"),
+        default="cite",
+        help="Grounded prompt style (default: cite)",
+    )
+    p_prompt.add_argument(
+        "--max-context-chars",
+        type=int,
+        default=6000,
+        dest="max_context_chars",
+        help="Max context characters (default: 6000)",
+    )
+    p_prompt.add_argument(
+        "--clarify",
+        action="store_true",
+        help="Emit a clarify prompt instead of a grounded-answer prompt",
+    )
+    p_prompt.add_argument(
+        "--missing",
+        default="",
+        help="Comma-separated missing hints for --clarify",
+    )
+    p_prompt.set_defaults(func=cmd_prompt)
+
+    p_filter = sub.add_parser(
+        "filter",
+        help="Filter docs by tags / tenant / ACL roles (fail-closed)",
+    )
+    p_filter.add_argument(
+        "--docs",
+        required=True,
+        help="Docs path: ACL JSONL preferred, or hybrid-docs / corpus JSONL",
+    )
+    p_filter.add_argument(
+        "--tags",
+        default=None,
+        help="Comma-separated tags (intersection required)",
+    )
+    p_filter.add_argument(
+        "--tenant",
+        default=None,
+        help="Tenant id (mismatched docs dropped)",
+    )
+    p_filter.add_argument(
+        "--roles",
+        default=None,
+        help="Comma-separated caller roles/users for ACL",
+    )
+    p_filter.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit filtered docs as JSON",
+    )
+    p_filter.set_defaults(func=cmd_filter)
+
+    p_html = sub.add_parser(
+        "html",
+        help="Extract text from an HTML file (and show content_hash)",
+    )
+    p_html.add_argument("path", help="Path to an HTML (or text) file")
+    p_html.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit Document-like JSON",
+    )
+    p_html.add_argument(
+        "--hash-only",
+        action="store_true",
+        dest="hash_only",
+        help="Print only the sha256 content_hash",
+    )
+    p_html.set_defaults(func=cmd_html)
+
 
     return parser
 

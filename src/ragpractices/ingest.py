@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, field
@@ -37,6 +38,18 @@ class Document:
     path: str
     text: str
     meta: dict[str, Any] = field(default_factory=dict)
+
+
+def content_hash(text: str) -> str:
+    """Stable SHA-256 hex digest of UTF-8 ``text`` (stdlib hashlib)."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _with_content_hash(doc: Document) -> Document:
+    """Attach ``content_hash`` to ``meta`` when missing (does not overwrite)."""
+    if "content_hash" not in doc.meta:
+        doc.meta["content_hash"] = content_hash(doc.text)
+    return doc
 
 
 def _document_id(path: Path, *, root: Path | None = None) -> str:
@@ -118,12 +131,13 @@ def load_text_file(path: str | Path, *, root: Path | None = None) -> Document:
     """
     p = Path(path)
     text = p.read_text(encoding="utf-8")
-    return Document(
+    doc = Document(
         id=_document_id(p, root=root),
         path=str(p),
         text=text,
         meta={},
     )
+    return _with_content_hash(doc)
 
 
 def load_markdown_file(path: str | Path, *, root: Path | None = None) -> Document:
@@ -135,12 +149,13 @@ def load_markdown_file(path: str | Path, *, root: Path | None = None) -> Documen
     p = Path(path)
     raw = p.read_text(encoding="utf-8")
     body, meta = _strip_front_matter(raw)
-    return Document(
+    doc = Document(
         id=_document_id(p, root=root),
         path=str(p),
         text=body,
         meta=meta,
     )
+    return _with_content_hash(doc)
 
 
 def _iter_files(root: Path, patterns: Iterable[str]) -> list[Path]:
@@ -168,9 +183,11 @@ def load_path(
     """Load a single file or all matching files under a directory.
 
     When ``path`` is a directory and ``glob`` is omitted, includes
-    ``**/*.txt`` and ``**/*.md``. Hidden directories and common virtualenv
-    / cache folders are skipped. Markdown files use front-matter stripping;
-    other extensions are loaded as plain text.
+    ``**/*.txt``, ``**/*.md``, and ``**/*.html``. Hidden directories and
+    common virtualenv / cache folders are skipped. Markdown files use
+    front-matter stripping; HTML uses :func:`ragpractices.html_ingest.load_html_file`;
+    other extensions are loaded as plain text. Each document ``meta`` gets a
+    stable ``content_hash`` (sha256 of text) when missing.
     """
     p = Path(path)
     if not p.exists():
@@ -179,16 +196,25 @@ def load_path(
     if p.is_file():
         if p.suffix.lower() in {".md", ".markdown"}:
             return [load_markdown_file(p)]
+        if p.suffix.lower() in {".html", ".htm"}:
+            from ragpractices.html_ingest import load_html_file
+
+            return [load_html_file(p)]
         return [load_text_file(p)]
 
     if not p.is_dir():
         raise ValueError(f"path is neither a file nor a directory: {p}")
 
-    patterns = [glob] if glob else ["**/*.txt", "**/*.md"]
+    patterns = [glob] if glob else ["**/*.txt", "**/*.md", "**/*.html", "**/*.htm"]
     docs: list[Document] = []
     for file_path in _iter_files(p, patterns):
-        if file_path.suffix.lower() in {".md", ".markdown"}:
+        suffix = file_path.suffix.lower()
+        if suffix in {".md", ".markdown"}:
             docs.append(load_markdown_file(file_path, root=p))
+        elif suffix in {".html", ".htm"}:
+            from ragpractices.html_ingest import load_html_file
+
+            docs.append(load_html_file(file_path, root=p))
         else:
             docs.append(load_text_file(file_path, root=p))
     return docs

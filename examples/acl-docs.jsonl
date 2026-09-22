@@ -1,0 +1,6 @@
+{"id": "refund-public", "text": "Refund requests are accepted within 30 days of purchase. Include your order ID when contacting support about a refund.", "tags": ["refund", "policy"], "tenant": "acme", "acl": ["public", "support"]}
+{"id": "shipping-public", "text": "Standard shipping takes 5-7 business days. Express shipping arrives in 2 business days in most regions.", "tags": ["shipping", "policy"], "tenant": "acme", "acl": ["public", "support"]}
+{"id": "password-internal", "text": "Password reset links expire after 15 minutes. Internal escalation: page the identity on-call.", "tags": ["password", "security"], "tenant": "acme", "acl": ["support", "security"]}
+{"id": "privacy-legal", "text": "Our privacy policy explains how account data is stored and when it is deleted after account closure.", "tags": ["privacy", "legal"], "tenant": "acme", "acl": ["legal", "admin"]}
+{"id": "customs-public", "text": "International orders may incur customs duties paid by the recipient. Shipping delays at the border are outside our control.", "tags": ["shipping", "customs"], "tenant": "acme", "acl": ["public"]}
+{"id": "other-tenant", "text": "BetaCorp refund window is 14 days only.", "tags": ["refund", "policy"], "tenant": "betacorp", "acl": ["public"]}
