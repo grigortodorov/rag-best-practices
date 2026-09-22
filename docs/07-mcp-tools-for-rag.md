@@ -59,7 +59,7 @@ A strong pattern: hybrid `search_docs` for candidates, then `get_document` to ex
 1. For factual corpus questions → **must** call `search_docs` before answering
 2. After search, optionally `get_document` for the top 1–3 ids
 3. Never invent `document_id` values; only use ids returned by tools
-4. On empty hits → abstain; do not fall back to parametric "memory" for private facts
+4. On empty hits → **fail closed** (abstain); do not fall back to parametric "memory" for private facts
 
 ## Security
 
@@ -84,5 +84,7 @@ User question
 
 - [examples/mcp-tool-schemas.json](../examples/mcp-tool-schemas.json)
 - [examples/sample-rag-pipeline.md](../examples/sample-rag-pipeline.md)
+- [06 — RAG principles](06-rag-principles.md)
 - [05 — Production security notes](05-production.md)
 - [08 — Anti-patterns](08-anti-patterns.md)
+- [11 — FAQ](11-faq.md) (MCP / document-id questions)
