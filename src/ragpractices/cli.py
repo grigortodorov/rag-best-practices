@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -12,6 +13,7 @@ from ragpractices import __version__
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
 from ragpractices.hybrid import hybrid_search
+from ragpractices.ingest import load_path, save_corpus_jsonl
 from ragpractices.rubric import DIMENSIONS, format_scorecard, score_answer
 
 
@@ -114,10 +116,44 @@ def cmd_hybrid(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_ingest(args: argparse.Namespace) -> int:
+    docs = load_path(args.path, glob=args.glob)
+    summary = [
+        {"id": d.id, "path": d.path, "chars": len(d.text)} for d in docs
+    ]
+
+    if args.out:
+        save_corpus_jsonl(docs, args.out)
+        print(f"ingested {len(docs)} document(s) -> {args.out}")
+        for row in summary:
+            print(f"  {row['id']}\t{row['chars']} chars\t{row['path']}")
+        return 0
+
+    if args.stdout:
+        for doc in docs:
+            sys.stdout.write(json.dumps(asdict(doc), ensure_ascii=False))
+            sys.stdout.write("\n")
+        return 0
+
+    # Default: short human summary table (not full text).
+    print(f"ingested {len(docs)} document(s)")
+    if not docs:
+        return 0
+    id_w = max(len("id"), max(len(r["id"]) for r in summary))
+    chars_w = max(len("chars"), max(len(str(r["chars"])) for r in summary))
+    header = f"{'id':<{id_w}}  {'chars':>{chars_w}}  path"
+    print(header)
+    print("-" * len(header))
+    for row in summary:
+        print(f"{row['id']:<{id_w}}  {row['chars']:>{chars_w}}  {row['path']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ragpractices",
-        description="Toolkit helpers for RAG chunking, hybrid search, scoring, and checklists.",
+        description="Toolkit helpers for RAG chunking, ingest, hybrid search, scoring, and checklists.",
     )
     parser.add_argument(
         "--version",
@@ -213,6 +249,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Return only the top K results (default: all)",
     )
     p_hybrid.set_defaults(func=cmd_hybrid)
+
+
+    p_ingest = sub.add_parser(
+        "ingest",
+        help="Load text/Markdown files into a corpus (summary or JSONL)",
+    )
+    p_ingest.add_argument(
+        "path",
+        help="File or directory to ingest (UTF-8 .txt / .md by default)",
+    )
+    p_ingest.add_argument(
+        "--out",
+        metavar="FILE",
+        help="Write full corpus as JSONL to FILE",
+    )
+    p_ingest.add_argument(
+        "--glob",
+        metavar="PATTERN",
+        help="Glob under a directory (default: **/*.txt and **/*.md)",
+    )
+    p_ingest.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Write full corpus JSONL to stdout (instead of a summary table)",
+    )
+    p_ingest.set_defaults(func=cmd_ingest)
 
     return parser
 
