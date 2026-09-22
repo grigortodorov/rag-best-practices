@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragpractices"
-version = "0.3.0"
-description = "Small toolkit helpers for RAG chunking, document ingest, hybrid search stubs, answer rubrics, and design checklists."
+version = "0.4.0"
+description = "Small toolkit helpers for RAG chunking, document ingest, hybrid search stubs, query rewrite, rerank, citations, answer rubrics, and design checklists."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
   { name = "grigortodorov" },
 ]
-keywords = ["rag", "chunking", "ingest", "hybrid-search", "retrieval", "evaluation", "checklist"]
+keywords = ["rag", "chunking", "ingest", "hybrid-search", "rerank", "citations", "retrieval", "evaluation", "checklist"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
