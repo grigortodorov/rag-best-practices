@@ -12,11 +12,12 @@ Use it as a design-review companion, an onboarding reading path, or a checklist 
 
 1. [Who this is for](#who-this-is-for)
 2. [Documentation](#documentation)
-3. [Examples](#examples)
-4. [Quick start mindset](#quick-start-mindset)
-5. [Contributing](#contributing)
-6. [Code of conduct](#code-of-conduct)
-7. [License](#license)
+3. [Usable toolkit](#usable-toolkit)
+4. [Examples](#examples)
+5. [Quick start mindset](#quick-start-mindset)
+6. [Contributing](#contributing)
+7. [Code of conduct](#code-of-conduct)
+8. [License](#license)
 
 ## Who this is for
 
@@ -43,8 +44,22 @@ Familiarity with basic LLM apps helps; you do not need a research background.
 | [10 — Multimodal and tables](docs/10-multimodal-and-tables.md) | PDFs, tables, images, OCR, structure-aware chunking |
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
 | [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
+| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (chunk / score / checklist) |
 
-**Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime.
+**Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime. For the installable helpers, see [13](docs/13-toolkit.md).
+
+## Usable toolkit
+
+Installable helpers (`ragpractices`) for chunking demos, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys.
+
+```bash
+pip install -e .
+ragpractices --help
+ragpractices chunk examples/sample.txt --by-headings
+ragpractices score --scores groundedness=2,relevance=2,completeness=1,citation_quality=2
+```
+
+Details: [docs/13-toolkit.md](docs/13-toolkit.md).
 
 ## Examples
 
@@ -58,6 +73,7 @@ Worked sketches and checklists you can copy into a design review:
 | [mcp-tool-schemas.json](examples/mcp-tool-schemas.json) | Illustrative MCP tool definitions |
 | [sample-rag-pipeline.md](examples/sample-rag-pipeline.md) | End-to-end sketch: ingest → cite |
 | [computer-use-checklist.md](examples/computer-use-checklist.md) | Preflight checklist for UI/browser agents |
+| [sample.txt](examples/sample.txt) | Tiny text fixture for the chunk CLI |
 
 ## Quick start mindset
 
