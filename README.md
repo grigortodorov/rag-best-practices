@@ -4,7 +4,7 @@
 
 **Practical, educational guidance for building Retrieval-Augmented Generation (RAG) systems that stay grounded, measurable, and production-safe.**
 
-This repo collects clear principles, tradeoffs, and patterns—chunking, hybrid retrieval, evaluation, citations, multimodal/PDF pitfalls, MCP tool-backed search, and common anti-patterns. Content is honest and hands-on: **no fabricated metrics, stars, downloads, dependents, or vendor eligibility claims**.
+This repo collects clear principles, tradeoffs, and patterns—chunking, hybrid retrieval, evaluation, citations, multimodal/PDF pitfalls, MCP tool-backed search, computer-use agents alongside RAG, and common anti-patterns. Content is honest and hands-on: **no fabricated metrics, stars, downloads, dependents, or vendor eligibility claims**.
 
 Use it as a design-review companion, an onboarding reading path, or a checklist source when shipping RAG features.
 
@@ -42,8 +42,9 @@ Familiarity with basic LLM apps helps; you do not need a research background.
 | [09 — Citations and grounding](docs/09-citations-and-grounding.md) | Citation formats, grounded answers, missing context |
 | [10 — Multimodal and tables](docs/10-multimodal-and-tables.md) | PDFs, tables, images, OCR, structure-aware chunking |
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
+| [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
 
-**Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime.
+**Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime.
 
 ## Examples
 
@@ -56,6 +57,7 @@ Worked sketches and checklists you can copy into a design review:
 | [evaluation-rubric.md](examples/evaluation-rubric.md) | Simple human + auto eval rubric |
 | [mcp-tool-schemas.json](examples/mcp-tool-schemas.json) | Illustrative MCP tool definitions |
 | [sample-rag-pipeline.md](examples/sample-rag-pipeline.md) | End-to-end sketch: ingest → cite |
+| [computer-use-checklist.md](examples/computer-use-checklist.md) | Preflight checklist for UI/browser agents |
 
 ## Quick start mindset
 
