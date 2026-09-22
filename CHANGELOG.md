@@ -2,6 +2,14 @@
 
 All notable changes to the `ragpractices` toolkit in this repository are documented here.
 
+## [0.9.0] — 2026-09-22
+
+### Added
+- **Claim-support audit** (`ragpractices.claim_check`): claim-level content-word overlap vs sources (`supported` / `weak` / `unsupported`) plus hard entity/number/date/id faithfulness; decision `pass` / `rewrite` / `abstain` (fail-closed); CLI `ragpractices claim-check` (exit 1 on rewrite/abstain). Complements aggregate `groundedness` and `cite_spans`—educational heuristic, **not** NLI.
+
+### Changed
+- Package version **0.9.0**.
+
 ## [0.8.0] — 2026-09-22
 
 ### Added

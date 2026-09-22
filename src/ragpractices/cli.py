@@ -31,6 +31,11 @@ from ragpractices.cite_spans import (
     report_to_dict as cite_span_report_to_dict,
     verify_citation_spans,
 )
+from ragpractices.claim_check import (
+    check_claims,
+    format_claim_check_report,
+    report_to_dict as claim_check_report_to_dict,
+)
 from ragpractices.compare import compare_strategies, format_compare_table, report_to_dict as compare_report_to_dict
 from ragpractices.eval import evaluate_retrieval, load_golden_jsonl, report_to_dict
 from ragpractices.filters import filter_docs, load_docs_jsonl
@@ -784,6 +789,25 @@ def cmd_chunk_ab(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_claim_check(args: argparse.Namespace) -> int:
+    answer = _load_answer(args.answer)
+    sources = _load_cite_sources(Path(args.sources))
+    report = check_claims(
+        answer,
+        sources,
+        supported_threshold=args.supported_threshold,
+        weak_threshold=args.weak_threshold,
+    )
+    if args.json:
+        json.dump(claim_check_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_claim_check_report(report))
+    # Fail-closed for CI: exit 1 on rewrite or abstain
+    return 0 if report.decision == "pass" else 1
+
+
 def cmd_cite_check(args: argparse.Namespace) -> int:
     answer = _load_answer(args.answer)
     sources = _load_cite_sources(Path(args.sources))
@@ -894,7 +918,7 @@ def build_parser() -> argparse.ArgumentParser:
             "rewrite, rerank, packing, groundedness, citations, "
             "offline eval, strategy compare, prompts, filters, "
             "HTML ingest, abstain, pipelines, quality, "
-            "scoring, and checklists."
+            "claim-check, scoring, and checklists."
         ),
     )
     parser.add_argument(
@@ -1519,6 +1543,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit CiteSpanReport as JSON",
     )
     p_cite_check.set_defaults(func=cmd_cite_check)
+
+    p_claim_check = sub.add_parser(
+        "claim-check",
+        help=(
+            "Claim-level support + entity/number faithfulness "
+            "(heuristic, not NLI)"
+        ),
+    )
+    p_claim_check.add_argument(
+        "--answer",
+        required=True,
+        help="Answer text or path to a file containing the answer",
+    )
+    p_claim_check.add_argument(
+        "--sources",
+        required=True,
+        help="Sources path: hybrid-docs, JSONL, or JSON list",
+    )
+    p_claim_check.add_argument(
+        "--supported-threshold",
+        type=float,
+        default=0.55,
+        help="Overlap cutoff for supported claims (default: 0.55)",
+    )
+    p_claim_check.add_argument(
+        "--weak-threshold",
+        type=float,
+        default=0.30,
+        help="Overlap cutoff for weak claims (default: 0.30)",
+    )
+    p_claim_check.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit ClaimCheckReport as JSON",
+    )
+    p_claim_check.set_defaults(func=cmd_claim_check)
 
     p_pos = sub.add_parser(
         "position-stress",

@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting / span verification, offline retrieval eval, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, claim-level support / entity faithfulness, citation formatting / span verification, offline retrieval eval, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -54,6 +54,8 @@ from ragpractices import (
     truncate_to_tokens,
     GroundednessReport,
     check_groundedness,
+    ClaimCheckReport,
+    check_claims,
     Citation,
     format_inline_citations,
     build_sources_block,
@@ -511,6 +513,19 @@ ragpractices cite-check --answer 'Refunds within "30 days of purchase" [1].' --s
 
 #### `verify_citation_spans(answer, sources) -> CiteSpanReport`
 
+### Claim-support audit
+
+Claim-level content-word overlap vs sources (`supported` / `weak` / `unsupported`) plus hard **number / date / id** faithfulness (substring match). Decision: `pass` / `rewrite` / `abstain` (fail-closed for CI). Complements aggregate `ground` and `cite-check`. **Not** an NLI entailment judge.
+
+```bash
+ragpractices claim-check --answer "Refunds are within 30 days of purchase." --sources examples/hybrid-docs.txt
+ragpractices claim-check --answer "Refunds are within 99 days." --sources examples/hybrid-docs.txt
+```
+
+#### `check_claims(answer, sources, *, supported_threshold=0.55, weak_threshold=0.30) -> ClaimCheckReport`
+
+Also: `split_claims`, `extract_sensitive_tokens`. Report fields include per-claim status/overlap, entity hits, counts, `decision`, and `reasons`.
+
 ### Lost-in-the-middle stress
 
 Packs gold evidence at `first` / `middle` / `last` among filler docs. Reports `estimate_tokens`, whether gold is present, offset, and a simple attention-risk label (middle = higher). **No LLM call**—educational stub only.
@@ -598,7 +613,7 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: local document ingest (incl. HTML), character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers, strategy compare, chunking A/B, citation span heuristics, lost-in-the-middle packing stress, index canaries, prompt templates, metadata/ACL filters, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md). See also [CHANGELOG.md](../CHANGELOG.md).
+This toolkit is intentionally small: local document ingest (incl. HTML), character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers, strategy compare, chunking A/B, citation span heuristics, claim-support / entity faithfulness, lost-in-the-middle packing stress, index canaries, prompt templates, metadata/ACL filters, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md). See also [CHANGELOG.md](../CHANGELOG.md).
 
 ## Next
 

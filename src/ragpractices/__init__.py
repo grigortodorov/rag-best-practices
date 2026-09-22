@@ -15,6 +15,14 @@ from ragpractices.cite_spans import (
     CiteSpanReport,
     verify_citation_spans,
 )
+from ragpractices.claim_check import (
+    ClaimCheckReport,
+    ClaimResult,
+    EntityHit,
+    check_claims,
+    extract_sensitive_tokens,
+    split_claims,
+)
 from ragpractices.position_stress import (
     PositionStressReport,
     run_position_stress,
@@ -86,7 +94,7 @@ from ragpractices.rubric import (
     score_answer,
 )
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "DIMENSIONS",
@@ -94,6 +102,9 @@ __all__ = [
     "CanaryReport",
     "ChunkAbReport",
     "CiteSpanReport",
+    "ClaimCheckReport",
+    "ClaimResult",
+    "EntityHit",
     "PositionStressReport",
     "AbstainResult",
     "CaseResult",
@@ -116,6 +127,7 @@ __all__ = [
     "build_clarify_prompt",
     "build_grounded_prompt",
     "build_sources_block",
+    "check_claims",
     "check_groundedness",
     "chunk_by_headings",
     "chunk_stats",
@@ -127,6 +139,7 @@ __all__ = [
     "dedupe_near",
     "estimate_tokens",
     "evaluate_retrieval",
+    "extract_sensitive_tokens",
     "filter_docs",
     "flag_chunks",
     "format_chunk_ab_table",
@@ -161,6 +174,7 @@ __all__ = [
     "save_corpus_jsonl",
     "score_answer",
     "should_answer",
+    "split_claims",
     "truncate_to_tokens",
     "verify_citation_spans",
 ]
