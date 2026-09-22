@@ -48,7 +48,7 @@ for section in outline(doc):
     )
 ```
 
-See [docs/02-chunking.md](../docs/02-chunking.md).
+See [docs/02-chunking.md](../docs/02-chunking.md) and [chunking-heuristics.md](chunking-heuristics.md).
 
 ## 3. Embed and index
 
