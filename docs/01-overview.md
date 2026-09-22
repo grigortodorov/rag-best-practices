@@ -56,9 +56,12 @@ Prefer other approaches when:
 1. This overview
 2. [02 — Chunking](02-chunking.md) and [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md)
 3. [06 — RAG principles](06-rag-principles.md) + [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md)
-4. [04 — Evaluation](04-evaluation.md) before claiming quality
-5. [05 — Production](05-production.md) and [08 — Anti-patterns](08-anti-patterns.md)
-6. [07 — MCP tools](07-mcp-tools-for-rag.md) if you expose retrieval as tools
+4. [09 — Citations and grounding](09-citations-and-grounding.md)
+5. [04 — Evaluation](04-evaluation.md) before claiming quality ([examples/evaluation-rubric.md](../examples/evaluation-rubric.md))
+6. [05 — Production](05-production.md) and [08 — Anti-patterns](08-anti-patterns.md)
+7. [10 — Multimodal and tables](10-multimodal-and-tables.md) when PDFs, tables, or images matter
+8. [07 — MCP tools](07-mcp-tools-for-rag.md) if you expose retrieval as tools
+9. [11 — FAQ](11-faq.md) for quick answers while building
 
 ## Next
 
