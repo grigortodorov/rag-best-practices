@@ -64,6 +64,16 @@ When multiple clients share backends, you need get-by-id / list-collections, or 
 
 It will try—**don’t allow it**. Only use ids returned by tools; validate arguments server-side.
 
+## Computer use (browser / desktop agents)
+
+### Should we use a computer-use agent instead of RAG?
+
+No—they solve different problems. **RAG** answers from indexed docs; **computer use** operates a live UI. Prefer typed MCP/API tools when they exist; use computer use for UI-only gaps (form flows, deploy verification). Combine them by retrieving a runbook first, then executing steps under allowlists and human confirmation for destructive actions. See [12 — Computer-use tools](12-computer-use-tools.md) and [examples/computer-use-checklist.md](../examples/computer-use-checklist.md).
+
+### Is it OK for the agent to read passwords or API keys from the screen?
+
+No. Do not scrape secrets from screenshots into prompts or logs. Inject credentials server-side or via a vault/browser store, confirm destructive actions, and enforce host/app allowlists ([12](12-computer-use-tools.md), [05](05-production.md)).
+
 ## Process
 
 ### Where should I propose a doc fix?
@@ -78,4 +88,6 @@ No. Content is educational. Do not add fabricated stars, downloads, dependents, 
 
 - [01 — Overview](01-overview.md)
 - [08 — Anti-patterns](08-anti-patterns.md)
+- [12 — Computer-use tools](12-computer-use-tools.md)
 - [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md)
+- [examples/computer-use-checklist.md](../examples/computer-use-checklist.md)
