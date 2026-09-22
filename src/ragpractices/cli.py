@@ -11,12 +11,34 @@ from typing import Any, Sequence
 
 from ragpractices import __version__
 from ragpractices.abstain import should_answer
+from ragpractices.canaries import (
+    format_canary_report,
+    load_canaries_jsonl,
+    report_to_dict as canary_report_to_dict,
+    run_canaries,
+)
 from ragpractices.checklist import get_checklist
+from ragpractices.chunk_ab import (
+    compare_chunkers,
+    format_chunk_ab_table,
+    load_sources as load_chunk_ab_sources,
+    report_to_dict as chunk_ab_report_to_dict,
+)
 from ragpractices.chunking import chunk_by_headings, chunk_text
 from ragpractices.citations import attach_citations
+from ragpractices.cite_spans import (
+    format_cite_span_report,
+    report_to_dict as cite_span_report_to_dict,
+    verify_citation_spans,
+)
 from ragpractices.compare import compare_strategies, format_compare_table, report_to_dict as compare_report_to_dict
 from ragpractices.eval import evaluate_retrieval, load_golden_jsonl, report_to_dict
 from ragpractices.filters import filter_docs, load_docs_jsonl
+from ragpractices.position_stress import (
+    format_position_stress_report,
+    report_to_dict as position_stress_report_to_dict,
+    run_position_stress,
+)
 from ragpractices.groundedness import check_groundedness
 from ragpractices.html_ingest import html_to_text, load_html_file
 from ragpractices.hybrid import hybrid_search
@@ -749,6 +771,77 @@ def _as_list_cli(value: Any) -> list[str]:
     return [str(value)]
 
 
+def cmd_chunk_ab(args: argparse.Namespace) -> int:
+    sources = load_chunk_ab_sources(args.sources)
+    cases = load_golden_jsonl(args.golden)
+    k = max(1, int(args.k))
+    report = compare_chunkers(sources, cases, k=k, retrieve_mode=args.retrieve)
+    if args.json:
+        json.dump(chunk_ab_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_chunk_ab_table(report))
+    return 0
+
+
+def cmd_cite_check(args: argparse.Namespace) -> int:
+    answer = _load_answer(args.answer)
+    sources = _load_cite_sources(Path(args.sources))
+    report = verify_citation_spans(answer, sources)
+    if args.json:
+        json.dump(cite_span_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_cite_span_report(report))
+    # Exit 1 if unsupported quotes or orphan citations
+    if report.unsupported_quotes or report.orphan_citations:
+        return 1
+    return 0
+
+
+def cmd_position_stress(args: argparse.Namespace) -> int:
+    gold = _load_answer(args.gold)
+    fillers_path = Path(args.fillers)
+    if fillers_path.suffix.lower() == ".jsonl":
+        fillers = load_docs_jsonl(fillers_path)
+    else:
+        documents, ids = _load_docs_with_ids(fillers_path)
+        fillers = [{"id": i, "text": t} for i, t in zip(ids, documents)]
+    # Drop fillers that are the gold text or already contain it (keep offsets meaningful)
+    fillers = [
+        f
+        for f in fillers
+        if str(f.get("text") or "") != gold and gold not in str(f.get("text") or "")
+    ]
+    max_tokens = max(1, int(args.max_tokens))
+    report = run_position_stress(gold, fillers, max_tokens=max_tokens)
+    if args.json:
+        json.dump(position_stress_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_position_stress_report(report))
+    return 0
+
+
+def cmd_canary(args: argparse.Namespace) -> int:
+    canaries = load_canaries_jsonl(args.canaries)
+    path = Path(args.docs)
+    if path.suffix.lower() == ".jsonl":
+        docs = load_docs_jsonl(path)
+    else:
+        documents, ids = _load_docs_with_ids(path)
+        docs = [{"id": i, "text": t} for i, t in zip(ids, documents)]
+    k = max(1, int(args.k))
+    report = run_canaries(canaries, docs, k=k, retrieve=args.retrieve)
+    if args.json:
+        json.dump(canary_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_canary_report(report))
+    return 0 if report.all_passed else 1
+
+
+
 def cmd_html(args: argparse.Namespace) -> int:
     path = Path(args.path)
     if args.hash_only:
@@ -1371,6 +1464,122 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print only the sha256 content_hash",
     )
     p_html.set_defaults(func=cmd_html)
+
+
+    p_chunk_ab = sub.add_parser(
+        "chunk-ab",
+        help="Compare chunking strategies via document-level hit@k / MRR",
+    )
+    p_chunk_ab.add_argument(
+        "--sources",
+        required=True,
+        help="Source corpus: ingest directory, hybrid-docs, or JSONL",
+    )
+    p_chunk_ab.add_argument(
+        "--golden",
+        required=True,
+        help="Golden JSONL with queries; expected_ids are source doc ids",
+    )
+    p_chunk_ab.add_argument(
+        "--k",
+        type=int,
+        default=3,
+        help="hit@k cutoff over parent docs (default: 3)",
+    )
+    p_chunk_ab.add_argument(
+        "--retrieve",
+        choices=("hybrid", "keyword"),
+        default="hybrid",
+        help="Retrieval over chunks (default: hybrid)",
+    )
+    p_chunk_ab.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit ChunkAbReport as JSON",
+    )
+    p_chunk_ab.set_defaults(func=cmd_chunk_ab)
+
+    p_cite_check = sub.add_parser(
+        "cite-check",
+        help="Verify quoted spans and [n] markers against sources",
+    )
+    p_cite_check.add_argument(
+        "--answer",
+        required=True,
+        help="Answer text or path to a file containing the answer",
+    )
+    p_cite_check.add_argument(
+        "--sources",
+        required=True,
+        help="Sources path: hybrid-docs, JSONL, or JSON list",
+    )
+    p_cite_check.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit CiteSpanReport as JSON",
+    )
+    p_cite_check.set_defaults(func=cmd_cite_check)
+
+    p_pos = sub.add_parser(
+        "position-stress",
+        help="Lost-in-the-middle stress: gold at first/middle/last (no LLM)",
+    )
+    p_pos.add_argument(
+        "--gold",
+        required=True,
+        help="Gold evidence text or path to a file",
+    )
+    p_pos.add_argument(
+        "--fillers",
+        required=True,
+        help="Filler docs path: hybrid-docs, JSONL, or directory",
+    )
+    p_pos.add_argument(
+        "--max-tokens",
+        type=int,
+        default=512,
+        dest="max_tokens",
+        help="Soft token budget heuristic (default: 512)",
+    )
+    p_pos.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit PositionStressReport as JSON",
+    )
+    p_pos.set_defaults(func=cmd_position_stress)
+
+    p_canary = sub.add_parser(
+        "canary",
+        help="Run index canary probes (exit 1 if any fail)",
+    )
+    p_canary.add_argument(
+        "--canaries",
+        required=True,
+        help="Path to canaries JSONL (query + expected_ids)",
+    )
+    p_canary.add_argument(
+        "--docs",
+        required=True,
+        help="Docs path: ACL JSONL preferred, or hybrid-docs / corpus",
+    )
+    p_canary.add_argument(
+        "--k",
+        type=int,
+        default=3,
+        help="hit@k cutoff (default: 3)",
+    )
+    p_canary.add_argument(
+        "--retrieve",
+        choices=("hybrid", "keyword"),
+        default="hybrid",
+        help="Retrieval mode (default: hybrid)",
+    )
+    p_canary.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit CanaryReport as JSON",
+    )
+    p_canary.set_defaults(func=cmd_canary)
 
 
     return parser

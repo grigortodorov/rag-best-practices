@@ -1,0 +1,7 @@
+{"id": "refund-hit", "query": "refund within 30 days", "expected_ids": ["refund-public"]}
+{"id": "shipping-hit", "query": "standard shipping business days", "expected_ids": ["shipping-public"]}
+{"id": "password-hit", "query": "password reset links expire", "expected_ids": ["password-internal"]}
+{"id": "privacy-hit", "query": "privacy policy account data deleted", "expected_ids": ["privacy-legal"]}
+{"id": "customs-hit", "query": "international customs duties", "expected_ids": ["customs-public"]}
+{"id": "acl-refund-public", "query": "refund within 30 days", "expected_ids": ["refund-public"], "tenant": "acme", "roles": ["public"], "tags": ["refund"]}
+{"id": "acl-shipping-public", "query": "express shipping business days", "expected_ids": ["shipping-public"], "tenant": "acme", "roles": ["public"], "tags": ["shipping"]}

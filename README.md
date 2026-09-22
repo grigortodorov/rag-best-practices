@@ -46,13 +46,13 @@ Familiarity with basic LLM apps helps; you do not need a research background.
 | [10 — Multimodal and tables](docs/10-multimodal-and-tables.md) | PDFs, tables, images, OCR, structure-aware chunking |
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
 | [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
-| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / html / chunk / hybrid / rewrite / rerank / pack / ground / cite / eval / compare / prompt / filter / decide / pipeline / quality / demo / score / checklist) |
+| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / html / chunk / hybrid / rewrite / rerank / pack / ground / cite / cite-check / eval / compare / chunk-ab / position-stress / canary / prompt / filter / decide / pipeline / quality / demo / score / checklist) |
 
 **Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime. For the installable helpers, see [13](docs/13-toolkit.md).
 
 ## Usable toolkit
 
-Installable helpers (`ragpractices`) for document ingest (incl. HTML + content hashing), chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, offline retrieval eval (hit@k / MRR) with CI gates, strategy compare, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. Package name: `ragpractices` (v0.7.0+). CI runs unit tests plus a retrieval hit-rate gate on push/PR to `main`.
+Installable helpers (`ragpractices`) for document ingest (incl. HTML + content hashing), chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting / span checks, offline retrieval eval (hit@k / MRR) with CI gates, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. Package name: `ragpractices` (v0.8.0+). CI runs unit tests plus a retrieval hit-rate gate and index canaries on push/PR to `main`.
 
 ```bash
 pip install -e .
@@ -75,6 +75,10 @@ ragpractices decide --top-score 0.05 --groundedness 0.2
 ragpractices pipeline --config examples/pipeline.json --query "refund shipping"
 ragpractices quality --docs examples/hybrid-docs.txt
 ragpractices dedupe --docs examples/hybrid-docs.txt --threshold 0.9
+ragpractices chunk-ab --sources examples/ingest-sample --golden examples/golden-chunk-ab.jsonl --k 3
+ragpractices cite-check --answer 'Refunds within "30 days of purchase" [1].' --sources examples/hybrid-docs.txt
+ragpractices position-stress --gold "Refund requests are accepted within 30 days of purchase." --fillers examples/hybrid-docs.txt --max-tokens 200
+ragpractices canary --canaries examples/canaries.jsonl --docs examples/acl-docs.jsonl --k 3
 ragpractices score --scores groundedness=2,relevance=2,completeness=1,citation_quality=2
 ```
 
@@ -95,6 +99,8 @@ Worked sketches and checklists you can copy into a design review:
 | [sample.txt](examples/sample.txt) | Tiny text fixture for the chunk CLI |
 | [hybrid-docs.txt](examples/hybrid-docs.txt) | Tiny multi-doc fixture for the hybrid CLI |
 | [ingest-sample/](examples/ingest-sample/) | Tiny multi-file fixture for the ingest CLI |
+| [golden-chunk-ab.jsonl](examples/golden-chunk-ab.jsonl) | Doc-level golden set for chunking A/B |
+| [canaries.jsonl](examples/canaries.jsonl) | Index canary probes (acl-docs aligned) |
 | [e2e_demo.py](examples/e2e_demo.py) | Runnable end-to-end pipeline (rewrite → ground) |
 
 ## Quick start mindset
@@ -122,7 +128,7 @@ Short scorecard (also see [examples/rag-principles-checklist.md](examples/rag-pr
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for toolkit release notes (`ragpractices` 0.7.0+).
+See [CHANGELOG.md](CHANGELOG.md) for toolkit release notes (`ragpractices` 0.8.0+).
 
 ## Contributing
 

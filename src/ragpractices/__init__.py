@@ -1,5 +1,24 @@
-"""ragpractices — small helpers for RAG chunking, rubrics, checklists, hybrid search, and ingest."""
+"""ragpractices — small helpers for RAG chunking, rubrics, checklists, hybrid search, ingest, and eval harnesses."""
 
+from ragpractices.canaries import (
+    Canary,
+    CanaryReport,
+    load_canaries_jsonl,
+    run_canaries,
+)
+from ragpractices.chunk_ab import (
+    ChunkAbReport,
+    compare_chunkers,
+    format_chunk_ab_table,
+)
+from ragpractices.cite_spans import (
+    CiteSpanReport,
+    verify_citation_spans,
+)
+from ragpractices.position_stress import (
+    PositionStressReport,
+    run_position_stress,
+)
 from ragpractices.abstain import AbstainResult, Decision, should_answer
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
@@ -67,10 +86,15 @@ from ragpractices.rubric import (
     score_answer,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     "DIMENSIONS",
+    "Canary",
+    "CanaryReport",
+    "ChunkAbReport",
+    "CiteSpanReport",
+    "PositionStressReport",
     "AbstainResult",
     "CaseResult",
     "ChunkIssue",
@@ -96,6 +120,7 @@ __all__ = [
     "chunk_by_headings",
     "chunk_stats",
     "chunk_text",
+    "compare_chunkers",
     "compare_strategies",
     "content_hash",
     "corpus_to_hybrid_docs",
@@ -104,6 +129,7 @@ __all__ = [
     "evaluate_retrieval",
     "filter_docs",
     "flag_chunks",
+    "format_chunk_ab_table",
     "format_compare_table",
     "format_inline_citations",
     "format_scorecard",
@@ -112,6 +138,7 @@ __all__ = [
     "html_to_text",
     "hybrid_search",
     "keyword_score",
+    "load_canaries_jsonl",
     "load_corpus_jsonl",
     "load_docs_jsonl",
     "load_golden_jsonl",
@@ -128,9 +155,12 @@ __all__ = [
     "reciprocal_rank_fusion",
     "rerank",
     "rewrite_query",
+    "run_canaries",
     "run_pipeline",
+    "run_position_stress",
     "save_corpus_jsonl",
     "score_answer",
     "should_answer",
     "truncate_to_tokens",
+    "verify_citation_spans",
 ]

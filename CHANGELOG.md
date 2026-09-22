@@ -2,6 +2,17 @@
 
 All notable changes to the `ragpractices` toolkit in this repository are documented here.
 
+## [0.8.0] — 2026-09-22
+
+### Added
+- **Chunking A/B eval** (`ragpractices.chunk_ab`): compare `fixed` / `fixed_small` / `fixed_large` / `headings` strategies with **document-level** hit@k + MRR after chunking (golden `expected_ids` are source doc ids); CLI `ragpractices chunk-ab`; example `examples/golden-chunk-ab.jsonl`.
+- **Citation span verifier** (`ragpractices.cite_spans`): heuristic check of quoted spans and `[n]` / `【n】` markers vs sources (supported / unsupported quotes, unused sources, orphan citations); CLI `ragpractices cite-check`.
+- **Lost-in-the-middle stress** (`ragpractices.position_stress`): pack gold evidence at first / middle / last among fillers; token estimate, gold offset, attention-risk labels (no LLM call); CLI `ragpractices position-stress`.
+- **Index canaries** (`ragpractices.canaries`): query + expected ids with optional tags/tenant/roles filters; CLI `ragpractices canary` (exit 1 on failure); example `examples/canaries.jsonl`; CI canary gate after eval.
+
+### Changed
+- Package version **0.8.0**.
+
 ## [0.7.0] — 2026-09-22
 
 ### Added

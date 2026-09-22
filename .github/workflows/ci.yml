@@ -30,3 +30,11 @@ jobs:
           --docs examples/hybrid-docs.txt
           --k 3
           --min-hit-rate 0.6
+
+      - name: Index canaries
+        run: >
+          ragpractices canary
+          --canaries examples/canaries.jsonl
+          --docs examples/acl-docs.jsonl
+          --k 3
+

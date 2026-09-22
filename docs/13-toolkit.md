@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, offline retrieval eval, strategy compare, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting / span verification, offline retrieval eval, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Package name: `ragpractices` (version `0.7.0+`). GitHub Actions CI runs `unittest` plus a retrieval hit-rate gate on push/PR to `main`.
+Requires Python 3.10+. Package name: `ragpractices` (version `0.8.0+`). GitHub Actions CI runs `unittest` plus a retrieval hit-rate gate and index canaries on push/PR to `main`.
 
 ## Library API
 
@@ -66,6 +66,16 @@ from ragpractices import (
     load_golden_jsonl,
     CompareReport,
     compare_strategies,
+    ChunkAbReport,
+    compare_chunkers,
+    CiteSpanReport,
+    verify_citation_spans,
+    PositionStressReport,
+    run_position_stress,
+    Canary,
+    CanaryReport,
+    run_canaries,
+    load_canaries_jsonl,
     build_grounded_prompt,
     build_clarify_prompt,
     filter_docs,
@@ -478,6 +488,49 @@ ragpractices filter --docs examples/acl-docs.jsonl --tenant acme --roles public 
 ragpractices filter --docs examples/acl-docs.jsonl --roles support --json
 ```
 
+
+### Chunking A/B (document-level recall)
+
+Compares `fixed` / `fixed_small` / `fixed_large` / `headings` strategies. Each strategy chunks sources with stable ids `{doc_id}:{i}`. Retrieval runs over chunks; a **hit** counts if any retrieved chunk's **parent document id** is in the golden `expected_ids` (document-level recall after chunking—not chunk-id labels).
+
+```bash
+ragpractices chunk-ab --sources examples/ingest-sample --golden examples/golden-chunk-ab.jsonl --k 3
+```
+
+#### `compare_chunkers(sources, cases, *, k=5) -> ChunkAbReport`
+
+Educational ranking by hit@k then mean MRR.
+
+### Citation span check
+
+Heuristic verifier for quoted `"..."` spans and `[n]` / `【n】` markers against provided sources (substring or whitespace-normalized match). Reports supported / unsupported quotes, unused sources, and orphan citations. **Not** an NLI entailment judge.
+
+```bash
+ragpractices cite-check --answer 'Refunds within "30 days of purchase" [1].' --sources examples/hybrid-docs.txt
+```
+
+#### `verify_citation_spans(answer, sources) -> CiteSpanReport`
+
+### Lost-in-the-middle stress
+
+Packs gold evidence at `first` / `middle` / `last` among filler docs. Reports `estimate_tokens`, whether gold is present, offset, and a simple attention-risk label (middle = higher). **No LLM call**—educational stub only.
+
+```bash
+ragpractices position-stress --gold "Refund requests are accepted within 30 days of purchase." --fillers examples/hybrid-docs.txt --max-tokens 200
+```
+
+#### `run_position_stress(gold, fillers, *, max_tokens=512) -> PositionStressReport`
+
+### Index canaries
+
+Canary = query + expected doc ids + optional tags/tenant/roles filter. Passes when any expected id appears in top-k. CLI exits `1` if any probe fails (CI smoke gate).
+
+```bash
+ragpractices canary --canaries examples/canaries.jsonl --docs examples/acl-docs.jsonl --k 3
+```
+
+#### `run_canaries(canaries, docs, *, k=3, retrieve="hybrid") -> CanaryReport`
+
 ### HTML extract
 
 ```bash
@@ -545,7 +598,7 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: local document ingest (incl. HTML), character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers and strategy compare, prompt templates, metadata/ACL filters, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md). See also [CHANGELOG.md](../CHANGELOG.md).
+This toolkit is intentionally small: local document ingest (incl. HTML), character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers, strategy compare, chunking A/B, citation span heuristics, lost-in-the-middle packing stress, index canaries, prompt templates, metadata/ACL filters, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md). See also [CHANGELOG.md](../CHANGELOG.md).
 
 ## Next
 

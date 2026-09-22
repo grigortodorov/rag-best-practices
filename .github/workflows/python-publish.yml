@@ -9,8 +9,8 @@
 name: Upload Python Package
 
 on:
-  release:
-    types: [published]
+  # Manual only — do not publish on GitHub Release until PyPI trusted publishing is configured.
+  workflow_dispatch:
 
 permissions:
   contents: read

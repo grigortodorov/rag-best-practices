@@ -1,0 +1,5 @@
+{"id": "refund-doc", "query": "refund within 30 days purchase", "expected_ids": ["refund-policy.txt", "faq.html"]}
+{"id": "shipping-doc", "query": "standard shipping business days", "expected_ids": ["shipping.md", "faq.html"]}
+{"id": "password-doc", "query": "password reset links expire minutes", "expected_ids": ["password-reset.md"]}
+{"id": "express-doc", "query": "express shipping arrives days", "expected_ids": ["shipping.md", "faq.html"]}
+{"id": "customs-faq", "query": "international customs duties", "expected_ids": ["faq.html"]}
