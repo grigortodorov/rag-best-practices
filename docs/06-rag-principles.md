@@ -25,7 +25,7 @@ Do not use prior knowledge for company-specific facts.
 
 ## 3. Cite chunks
 
-Return stable identifiers (document + section + `chunk_id` or URL + paragraph). Citations make answers auditable and improve user trust.
+Return stable identifiers (document + section + `chunk_id` or URL + paragraph). Citations make answers auditable and improve user trust. For formats, quote vs paraphrase, and missing-context behavior, see [09 — Citations and grounding](09-citations-and-grounding.md).
 
 **Example:** "Refunds are accepted within 30 days `[policy#refunds:chunk-12]`."
 
@@ -92,4 +92,4 @@ If step 2 yields no hits above threshold → abstain (principle 4).
 
 ## Quick reference
 
-See [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md) and [08 — Anti-patterns](08-anti-patterns.md).
+See [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md), [09 — Citations and grounding](09-citations-and-grounding.md), and [08 — Anti-patterns](08-anti-patterns.md).
