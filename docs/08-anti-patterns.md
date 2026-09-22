@@ -78,7 +78,7 @@ Patterns that repeatedly cause weak, unsafe, or expensive RAG systems—and what
 
 **Mistake:** Same 512-token splitter for FAQs, tables, and code.  
 **Why it hurts:** Broken tables; split functions; weak FAQ match.  
-**Fix:** Content-type-specific strategies ([02 — Chunking](02-chunking.md)).
+**Fix:** Content-type-specific strategies ([02 — Chunking](02-chunking.md), [examples/chunking-heuristics.md](../examples/chunking-heuristics.md), [10 — Multimodal](10-multimodal-and-tables.md)).
 
 ## 14. Secrets in examples, logs, or tool args
 
@@ -101,3 +101,6 @@ Patterns that repeatedly cause weak, unsafe, or expensive RAG systems—and what
 
 - [examples/rag-principles-checklist.md](../examples/rag-principles-checklist.md)
 - [examples/sample-rag-pipeline.md](../examples/sample-rag-pipeline.md)
+- [09 — Citations and grounding](09-citations-and-grounding.md)
+- [10 — Multimodal and tables](10-multimodal-and-tables.md)
+- [11 — FAQ](11-faq.md)
