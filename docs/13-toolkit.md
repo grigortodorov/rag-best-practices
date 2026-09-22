@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, answer scoring, and a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest, chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, offline retrieval eval, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Published releases use the PyPI name `ragpractices` (version `0.5.0+`).
+Requires Python 3.10+. Package name: `ragpractices` (version `0.6.0+`). GitHub Actions CI runs `unittest` on push/PR to `main`.
 
 ## Library API
 
@@ -55,6 +55,21 @@ from ragpractices import (
     format_inline_citations,
     build_sources_block,
     attach_citations,
+    GoldenCase,
+    EvalReport,
+    hit_at_k,
+    mrr,
+    evaluate_retrieval,
+    load_golden_jsonl,
+    AbstainResult,
+    should_answer,
+    PipelineResult,
+    load_pipeline_config,
+    run_pipeline,
+    ChunkStats,
+    chunk_stats,
+    flag_chunks,
+    dedupe_near,
     score_answer,
     format_scorecard,
     get_checklist,
@@ -285,6 +300,32 @@ Plain-text scorecard for humans or logs.
 
 Short embedded principles checklist (full checklist lives in `examples/rag-principles-checklist.md`).
 
+### Offline retrieval eval
+
+Educational hit@k and MRR against a golden set. **Not** a substitute for human judgment or production metrics.
+
+- `hit_at_k(retrieved_ids, expected_ids, k) -> bool`
+- `mrr(retrieved_ids, expected_ids) -> float`
+- `evaluate_retrieval(cases, retrieve_fn, *, k=5) -> EvalReport`
+- `load_golden_jsonl(path) -> list[GoldenCase]`
+
+### Fail-closed abstain
+
+- `should_answer(*, top_score=None, groundedness=None, min_top_score=0.1, min_groundedness=0.3, empty_retrieval=False) -> AbstainResult`
+- Decisions: `answer` | `abstain` | `clarify`
+
+### Pipeline config + traces
+
+- `load_pipeline_config(path) -> dict`
+- `run_pipeline(config, *, query, docs) -> PipelineResult` with ordered stage traces (`name`, `ms`, `ok`, `summary`)
+- Stages: `rewrite`, `hybrid`, `rerank`, `pack`, `ground`, `cite`, `decide` (see `examples/pipeline.json`)
+
+### Chunk quality + near-dup
+
+- `chunk_stats(texts) -> ChunkStats`
+- `flag_chunks(texts, *, min_chars=20, max_chars=4000) -> list[ChunkIssue]`
+- `dedupe_near(texts, *, threshold=0.9) -> DedupeResult`
+
 ## CLI
 
 Entry point: `ragpractices`.
@@ -365,9 +406,37 @@ ragpractices ground --answer "We ship unicorns tomorrow." \
   --sources examples/hybrid-docs.txt --json
 ```
 
+
+### Offline retrieval eval
+
+```bash
+ragpractices eval --golden examples/golden-retrieval.jsonl \
+  --docs examples/hybrid-docs.txt --k 3
+```
+
+### Fail-closed decide
+
+```bash
+ragpractices decide --top-score 0.05 --groundedness 0.2
+ragpractices decide --top-score 0.8 --groundedness 0.9
+```
+
+### Configurable pipeline
+
+```bash
+ragpractices pipeline --config examples/pipeline.json --query "refund shipping"
+```
+
+### Chunk quality and near-dedupe
+
+```bash
+ragpractices quality --docs examples/hybrid-docs.txt
+ragpractices dedupe --docs examples/hybrid-docs.txt --threshold 0.9
+```
+
 ### End-to-end demo
 
-Runs rewrite → hybrid → rerank → pack → cite → ground against sample docs (defaults to `examples/hybrid-docs.txt` when run from the repo root). Also available as `examples/e2e_demo.py`.
+Runs rewrite → hybrid → rerank → pack → cite → ground → decide against sample docs (defaults to `examples/hybrid-docs.txt` when run from the repo root). Also available as `examples/e2e_demo.py`.
 
 ```bash
 ragpractices demo --query "refund shipping" --max-tokens 200
@@ -404,7 +473,7 @@ pytest -q
 
 ## Scope and honesty
 
-This toolkit is intentionally small: local document ingest, character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or benchmark suite. Do not treat demo scores as product metrics; wire your own gold set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
+This toolkit is intentionally small: local document ingest, character/heading chunking, hybrid search / rewrite / rerank / packing / groundedness *stubs* (not a production retriever or NLI judge), offline hit@k/MRR helpers, a fail-closed abstain gate, a JSON pipeline runner with traces, chunk quality / Jaccard near-dedupe, citation formatting helpers, and a four-dimension scorecard. It is **not** an embedder or full benchmark suite. Do not treat demo scores as product metrics; extend the golden set and retrieval metrics as described in [04 — Evaluation](04-evaluation.md).
 
 ## Next
 

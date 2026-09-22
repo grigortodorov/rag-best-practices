@@ -10,13 +10,17 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from ragpractices import __version__
+from ragpractices.abstain import should_answer
 from ragpractices.checklist import get_checklist
 from ragpractices.chunking import chunk_by_headings, chunk_text
 from ragpractices.citations import attach_citations
+from ragpractices.eval import evaluate_retrieval, load_golden_jsonl, report_to_dict
 from ragpractices.groundedness import check_groundedness
 from ragpractices.hybrid import hybrid_search
-from ragpractices.ingest import corpus_to_hybrid_docs, load_path, save_corpus_jsonl
+from ragpractices.ingest import corpus_to_hybrid_docs, load_corpus_jsonl, load_path, save_corpus_jsonl
 from ragpractices.packing import pack_context
+from ragpractices.pipeline import load_pipeline_config, result_to_dict, run_pipeline
+from ragpractices.quality import chunk_stats, dedupe_near, flag_chunks, stats_to_dict
 from ragpractices.rerank import mmr_rerank, rerank
 from ragpractices.rewrite import multi_query, rewrite_query
 from ragpractices.rubric import DIMENSIONS, format_scorecard, score_answer
@@ -132,6 +136,35 @@ def _normalize_sources_list(items: list[Any]) -> list[dict[str, Any]]:
         else:
             raise ValueError(f"source item {i} must be str or object")
     return out
+
+
+
+def _load_docs_with_ids(path: Path) -> tuple[list[str], list[str]]:
+    """Load documents and stable ids from hybrid-docs, corpus JSONL, or a directory."""
+    if path.is_dir():
+        corpus = load_path(path)
+        return corpus_to_hybrid_docs(corpus), [d.id for d in corpus]
+
+    suffix = path.suffix.lower()
+    if suffix == ".jsonl":
+        # Prefer corpus schema; fall back to cite-sources (id+text)
+        try:
+            corpus = load_corpus_jsonl(path)
+            if corpus:
+                return [d.text for d in corpus], [d.id for d in corpus]
+        except (OSError, ValueError, json.JSONDecodeError, TypeError, KeyError):
+            pass
+        sources = _load_cite_sources(path)
+        texts = [
+            str(s.get("text") or s.get("document") or s.get("snippet") or "")
+            for s in sources
+        ]
+        ids = [str(s.get("id", f"doc-{i}")) for i, s in enumerate(sources)]
+        return texts, ids
+
+    documents = _load_hybrid_docs(path)
+    ids = [f"doc-{i}" for i in range(len(documents))]
+    return documents, ids
 
 
 def cmd_chunk(args: argparse.Namespace) -> int:
@@ -450,7 +483,156 @@ def run_demo_pipeline(
         print("   unsupported_sentences: (none)")
     print(f"   notes: {report.notes}")
     print()
+
+    # 8. Fail-closed decide
+    print("8) Fail-closed decide (abstain gate)")
+    top_score = ranked[0]["score"] if ranked else None
+    empty = len(ranked) == 0
+    decision = should_answer(
+        top_score=top_score,
+        groundedness=report.score,
+        empty_retrieval=empty,
+    )
+    print(f"   decision: {decision.decision}")
+    print(f"   reason:   {decision.reason}")
+    if decision.decision != "answer":
+        print("   skipping confident answer presentation (fail closed)")
+    print()
     print("=== demo complete ===")
+    return 0
+
+
+
+def cmd_eval(args: argparse.Namespace) -> int:
+    """Offline retrieval eval against a golden JSONL set."""
+    cases = load_golden_jsonl(args.golden)
+    docs_path = Path(args.docs)
+    documents, ids = _load_docs_with_ids(docs_path)
+    k = max(1, int(args.k))
+
+    def retrieve_fn(query: str) -> list[str]:
+        hits = hybrid_search(query, documents, fusion="rrf")
+        # Full ranking for MRR; hit@k still cuts at k inside evaluate_retrieval.
+        return [ids[h["index"]] for h in hits]
+
+    report = evaluate_retrieval(cases, retrieve_fn, k=k)
+    payload = report_to_dict(report)
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"n_cases: {report.n_cases}")
+        print(f"hit_at_{k}: {report.hit_at_k_rate:.4f}")
+        print(f"mean_mrr: {report.mean_mrr:.4f}")
+        print(f"notes: {report.notes}")
+        for c in report.cases:
+            mark = "HIT" if c.hit_at_k else "MISS"
+            print(
+                f"  [{c.case_id}] {mark} mrr={c.mrr:.4f} "
+                f"expected={c.expected_ids} retrieved={c.retrieved_ids[:k]}"
+            )
+    return 0
+
+
+def cmd_decide(args: argparse.Namespace) -> int:
+    result = should_answer(
+        top_score=args.top_score,
+        groundedness=args.groundedness,
+        min_top_score=args.min_top_score,
+        min_groundedness=args.min_groundedness,
+        empty_retrieval=args.empty_retrieval,
+    )
+    payload = {"decision": result.decision, "reason": result.reason}
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"decision: {result.decision}")
+        print(f"reason: {result.reason}")
+    return 0 if result.decision == "answer" else 1
+
+
+def cmd_pipeline(args: argparse.Namespace) -> int:
+    config = load_pipeline_config(args.config)
+    docs_path = Path(args.docs) if args.docs else _default_demo_docs()
+    if not docs_path.exists():
+        raise ValueError(f"docs path not found: {docs_path}")
+    documents, ids = _load_docs_with_ids(docs_path)
+    docs = [{"id": i, "text": t} for i, t in zip(ids, documents)]
+    result = run_pipeline(config, query=args.query, docs=docs)
+    payload = result_to_dict(result)
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"query: {result.query}")
+        print(f"ok: {result.ok}")
+        for s in result.stages:
+            status = "ok" if s.ok else f"FAIL ({s.error})"
+            print(f"  - {s.name}: {s.ms:.2f} ms [{status}] {s.summary}")
+        print("final:")
+        json.dump(result.final, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    return 0 if result.ok else 1
+
+
+def cmd_quality(args: argparse.Namespace) -> int:
+    documents, ids = _load_docs_with_ids(Path(args.docs))
+    stats = chunk_stats(documents, very_short=args.min_chars)
+    issues = flag_chunks(
+        documents,
+        min_chars=args.min_chars,
+        max_chars=args.max_chars,
+    )
+    payload = {
+        "stats": stats_to_dict(stats),
+        "issues": [
+            {"index": i.index, "id": ids[i.index], "kind": i.kind, "detail": i.detail, "length": i.length}
+            for i in issues
+        ],
+    }
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(
+            f"n={stats.n} mean={stats.mean_length:.1f} median={stats.median_length:.1f} "
+            f"min={stats.min_length} max={stats.max_length} "
+            f"empty={stats.empty_count} very_short={stats.very_short_count}"
+        )
+        if issues:
+            print("issues:")
+            for i in issues:
+                print(f"  [{ids[i.index]}] {i.kind}: {i.detail}")
+        else:
+            print("issues: (none)")
+    return 0
+
+
+def cmd_dedupe(args: argparse.Namespace) -> int:
+    documents, ids = _load_docs_with_ids(Path(args.docs))
+    result = dedupe_near(documents, threshold=args.threshold)
+    payload = {
+        "threshold": result.threshold,
+        "kept_indices": result.kept_indices,
+        "kept_ids": [ids[i] for i in result.kept_indices],
+        "dropped_pairs": [
+            {"kept": a, "dropped": b, "jaccard": sim, "kept_id": ids[a], "dropped_id": ids[b]}
+            for a, b, sim in result.dropped_pairs
+        ],
+    }
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"kept {len(result.kept_indices)}/{len(documents)} (threshold={result.threshold})")
+        print(f"kept_ids: {payload['kept_ids']}")
+        if result.dropped_pairs:
+            print("dropped:")
+            for a, b, sim in result.dropped_pairs:
+                print(f"  {ids[b]} ~ {ids[a]} (jaccard={sim:.3f})")
+        else:
+            print("dropped: (none)")
     return 0
 
 
@@ -475,6 +657,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Toolkit helpers for RAG chunking, ingest, hybrid search, "
             "rewrite, rerank, packing, groundedness, citations, "
+            "offline eval, abstain, pipelines, quality, "
             "scoring, and checklists."
         ),
     )
@@ -745,7 +928,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_demo = sub.add_parser(
         "demo",
-        help="End-to-end demo: rewrite → hybrid → rerank → pack → cite → ground",
+        help="End-to-end demo: rewrite → hybrid → rerank → pack → cite → ground → decide",
     )
     p_demo.add_argument(
         "--query",
@@ -772,6 +955,150 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip the query-rewrite step",
     )
     p_demo.set_defaults(func=cmd_demo)
+
+
+    p_eval = sub.add_parser(
+        "eval",
+        help="Offline retrieval eval (hit@k + MRR) against a golden JSONL set",
+    )
+    p_eval.add_argument(
+        "--golden",
+        required=True,
+        help="Path to golden cases JSONL (query + expected_ids)",
+    )
+    p_eval.add_argument(
+        "--docs",
+        required=True,
+        help="Docs path: hybrid-docs, corpus JSONL, or ingest directory",
+    )
+    p_eval.add_argument(
+        "--k",
+        type=int,
+        default=5,
+        help="hit@k cutoff / retrieval depth (default: 5)",
+    )
+    p_eval.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit full EvalReport as JSON",
+    )
+    p_eval.set_defaults(func=cmd_eval)
+
+    p_decide = sub.add_parser(
+        "decide",
+        help="Fail-closed answer / abstain / clarify gate",
+    )
+    p_decide.add_argument(
+        "--top-score",
+        type=float,
+        default=None,
+        help="Top retrieval score (optional)",
+    )
+    p_decide.add_argument(
+        "--groundedness",
+        type=float,
+        default=None,
+        help="Groundedness score in [0, 1] (optional)",
+    )
+    p_decide.add_argument(
+        "--min-top-score",
+        type=float,
+        default=0.1,
+        help="Abstain if top_score is below this (default: 0.1)",
+    )
+    p_decide.add_argument(
+        "--min-groundedness",
+        type=float,
+        default=0.3,
+        help="Clarify if groundedness is below this (default: 0.3)",
+    )
+    p_decide.add_argument(
+        "--empty-retrieval",
+        action="store_true",
+        help="Force empty-retrieval abstain path",
+    )
+    p_decide.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit decision JSON",
+    )
+    p_decide.set_defaults(func=cmd_decide)
+
+    p_pipe = sub.add_parser(
+        "pipeline",
+        help="Run a JSON-configured multi-stage pipeline with traces",
+    )
+    p_pipe.add_argument(
+        "--config",
+        required=True,
+        help="Path to pipeline JSON config",
+    )
+    p_pipe.add_argument(
+        "--query",
+        required=True,
+        help="Query string",
+    )
+    p_pipe.add_argument(
+        "--docs",
+        default=None,
+        help="Docs path (default: examples/hybrid-docs.txt when run from repo root)",
+    )
+    p_pipe.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit PipelineResult as JSON",
+    )
+    p_pipe.set_defaults(func=cmd_pipeline)
+
+    p_quality = sub.add_parser(
+        "quality",
+        help="Chunk length stats and quality flags for a docs file",
+    )
+    p_quality.add_argument(
+        "--docs",
+        required=True,
+        help="Docs path: hybrid-docs, corpus JSONL, or ingest directory",
+    )
+    p_quality.add_argument(
+        "--min-chars",
+        type=int,
+        default=20,
+        help="Too-short / very_short threshold (default: 20)",
+    )
+    p_quality.add_argument(
+        "--max-chars",
+        type=int,
+        default=4000,
+        help="Too-long threshold (default: 4000)",
+    )
+    p_quality.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit stats + issues as JSON",
+    )
+    p_quality.set_defaults(func=cmd_quality)
+
+    p_dedupe = sub.add_parser(
+        "dedupe",
+        help="Near-duplicate filter via token Jaccard similarity",
+    )
+    p_dedupe.add_argument(
+        "--docs",
+        required=True,
+        help="Docs path: hybrid-docs, corpus JSONL, or ingest directory",
+    )
+    p_dedupe.add_argument(
+        "--threshold",
+        type=float,
+        default=0.9,
+        help="Jaccard threshold in [0, 1] (default: 0.9)",
+    )
+    p_dedupe.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit kept/dropped as JSON",
+    )
+    p_dedupe.set_defaults(func=cmd_dedupe)
 
     return parser
 

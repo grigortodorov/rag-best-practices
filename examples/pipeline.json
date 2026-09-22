@@ -1,0 +1,12 @@
+{
+  "answer": "Refunds are accepted within 30 days of purchase. Standard shipping takes 5-7 business days.",
+  "stages": [
+    {"name": "rewrite", "params": {"mode": "expand"}},
+    {"name": "hybrid", "params": {"fusion": "rrf", "top": 5}},
+    {"name": "rerank", "params": {"top_k": 3}},
+    {"name": "pack", "params": {"max_tokens": 200}},
+    {"name": "ground", "params": {}},
+    {"name": "cite", "params": {"style": "numeric"}},
+    {"name": "decide", "params": {"min_top_score": 0.01, "min_groundedness": 0.2}}
+  ]
+}

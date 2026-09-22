@@ -1,0 +1,5 @@
+{"id": "refund", "query": "refund within 30 days", "expected_ids": ["doc-0"]}
+{"id": "shipping", "query": "standard shipping business days", "expected_ids": ["doc-1"]}
+{"id": "password", "query": "password reset link expire", "expected_ids": ["doc-2"]}
+{"id": "customs", "query": "international customs duties", "expected_ids": ["doc-4"]}
+{"id": "refund-or-ship", "query": "refund shipping policy", "expected_ids": ["doc-0", "doc-1"]}

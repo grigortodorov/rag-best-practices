@@ -1,6 +1,7 @@
 # RAG Best Practices
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/grigortodorov/rag-best-practices/actions/workflows/ci.yml/badge.svg)](https://github.com/grigortodorov/rag-best-practices/actions/workflows/ci.yml)
 
 **Practical, educational guidance for building Retrieval-Augmented Generation (RAG) systems that stay grounded, measurable, and production-safe.**
 
@@ -15,9 +16,10 @@ Use it as a design-review companion, an onboarding reading path, or a checklist 
 3. [Usable toolkit](#usable-toolkit)
 4. [Examples](#examples)
 5. [Quick start mindset](#quick-start-mindset)
-6. [Contributing](#contributing)
-7. [Code of conduct](#code-of-conduct)
-8. [License](#license)
+6. [Before you ship RAG](#before-you-ship-rag)
+7. [Contributing](#contributing)
+8. [Code of conduct](#code-of-conduct)
+9. [License](#license)
 
 ## Who this is for
 
@@ -44,13 +46,13 @@ Familiarity with basic LLM apps helps; you do not need a research background.
 | [10 — Multimodal and tables](docs/10-multimodal-and-tables.md) | PDFs, tables, images, OCR, structure-aware chunking |
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
 | [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
-| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / chunk / hybrid / rewrite / rerank / pack / ground / cite / demo / score / checklist) |
+| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / chunk / hybrid / rewrite / rerank / pack / ground / cite / eval / decide / pipeline / quality / demo / score / checklist) |
 
 **Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime. For the installable helpers, see [13](docs/13-toolkit.md).
 
 ## Usable toolkit
 
-Installable helpers (`ragpractices`) for document ingest, chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. PyPI package name: `ragpractices` (v0.5.0+).
+Installable helpers (`ragpractices`) for document ingest, chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, citation formatting, offline retrieval eval (hit@k / MRR), fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. Package name: `ragpractices` (v0.6.0+). CI runs unit tests on push/PR to `main`.
 
 ```bash
 pip install -e .
@@ -64,6 +66,11 @@ ragpractices cite --answer "Refunds are within 30 days [1]." --sources examples/
 ragpractices pack --docs examples/hybrid-docs.txt --max-tokens 40
 ragpractices ground --answer "Refunds are within 30 days." --sources examples/hybrid-docs.txt
 ragpractices demo --query "refund shipping"
+ragpractices eval --golden examples/golden-retrieval.jsonl --docs examples/hybrid-docs.txt --k 3
+ragpractices decide --top-score 0.05 --groundedness 0.2
+ragpractices pipeline --config examples/pipeline.json --query "refund shipping"
+ragpractices quality --docs examples/hybrid-docs.txt
+ragpractices dedupe --docs examples/hybrid-docs.txt --threshold 0.9
 ragpractices score --scores groundedness=2,relevance=2,completeness=1,citation_quality=2
 ```
 
@@ -95,6 +102,19 @@ Worked sketches and checklists you can copy into a design review:
 5. **Prefer hybrid search** when users type IDs, error codes, or rare keywords.
 
 For the full list, see [docs/06-rag-principles.md](docs/06-rag-principles.md). For citations and abstention patterns, see [docs/09-citations-and-grounding.md](docs/09-citations-and-grounding.md).
+
+
+## Before you ship RAG
+
+Short scorecard (also see [examples/rag-principles-checklist.md](examples/rag-principles-checklist.md) and `ragpractices checklist`):
+
+1. **Golden retrieval set** — offline hit@k / MRR on labeled queries (`ragpractices eval`).
+2. **Fail closed** — empty or low-score retrieval abstains; weak groundedness clarifies (`ragpractices decide`).
+3. **Citations required** — answers point at stable chunk/doc ids, not free-form prose.
+4. **Chunk quality** — length stats and near-dupes reviewed (`ragpractices quality` / `dedupe`).
+5. **Hybrid for IDs/keywords** — keyword + dense (or RRF) when users type codes, SKUs, or rare terms.
+6. **Token-budget packing** — context fits the model window without silent truncation surprises.
+7. **Traces in staging** — pipeline stage timings/summaries available for debugging (`ragpractices pipeline`).
 
 ## Contributing
 
