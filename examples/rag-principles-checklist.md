@@ -2,7 +2,7 @@
 
 Use this in design reviews or before shipping a RAG change.
 
-Related: [docs/06-rag-principles.md](../docs/06-rag-principles.md) · [docs/08-anti-patterns.md](../docs/08-anti-patterns.md) · [sample-rag-pipeline.md](sample-rag-pipeline.md)
+Related: [docs/06-rag-principles.md](../docs/06-rag-principles.md) · [docs/09-citations-and-grounding.md](../docs/09-citations-and-grounding.md) · [docs/08-anti-patterns.md](../docs/08-anti-patterns.md) · [evaluation-rubric.md](evaluation-rubric.md) · [sample-rag-pipeline.md](sample-rag-pipeline.md)
 
 ## Retrieval
 
