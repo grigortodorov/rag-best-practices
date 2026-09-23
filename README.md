@@ -20,7 +20,7 @@ Most RAG writeups stop at “embed → retrieve → prompt.” Shipping teams ne
 | You need… | This repo gives you… |
 | --- | --- |
 | Principles you can argue in a design review | 13 focused docs + anti-patterns |
-| Something to run in CI today | `eval`, `canary`, `claim-check` (exit codes) |
+| Something to run in CI today | `eval`, `canary`, `claim-check`, `conflict-check` (exit codes) |
 | Anti-hallucination beyond “looks grounded” | Claim support + hard number/date/id checks |
 | No vendor lock-in | MIT, stdlib-only toolkit |
 
@@ -44,7 +44,15 @@ missing:
   - number: 99
 ```
 
+
 Same wording with `30` → `decision: pass`. That is the niche: **prose can look fine while a number is fabricated**.
+
+Pre-answer source clash (30 vs 90 day refund windows):
+
+```bash
+ragpractices conflict-check --sources examples/conflict-docs.jsonl
+# → decision: conflict (exit 1)
+```
 
 Index drift probe (also in CI):
 
@@ -71,6 +79,7 @@ Full command list: [docs/13-toolkit.md](docs/13-toolkit.md).
 | Command | What it catches / does |
 | --- | --- |
 | `claim-check` | Per-claim support + invented numbers/dates/ids |
+| `conflict-check` | Pre-answer source disagreements (numbers / negation) |
 | `cite-check` | Quoted spans and `[n]` markers vs sources |
 | `canary` | Index drift / ACL probe suite (CI gate) |
 | `eval` | Offline hit@k / MRR with `--min-hit-rate` |
@@ -110,7 +119,7 @@ Full command list: [docs/13-toolkit.md](docs/13-toolkit.md).
 
 1. **Golden retrieval set** — offline hit@k / MRR (`ragpractices eval`)
 2. **Fail closed** — empty/low-score retrieval abstains (`ragpractices decide`)
-3. **Citations + claim checks** — spans and sensitive tokens verified (`cite-check`, `claim-check`)
+3. **Citations + claim checks** — spans and sensitive tokens verified (`cite-check`, `claim-check`); pre-answer source clashes (`conflict-check`)
 4. **Canaries in CI** — catch index/ACL drift (`ragpractices canary`)
 5. **Hybrid for IDs/keywords** — when users type codes, SKUs, or rare terms
 6. **Traces in staging** — stage timings for debugging (`ragpractices pipeline`)
@@ -129,11 +138,12 @@ Checklist: [examples/rag-principles-checklist.md](examples/rag-principles-checkl
 | [computer-use-checklist.md](examples/computer-use-checklist.md) | Preflight checklist for UI/browser agents |
 | [golden-retrieval.jsonl](examples/golden-retrieval.jsonl) | Offline retrieval goldens |
 | [canaries.jsonl](examples/canaries.jsonl) | Index canary probes |
+| [conflict-docs.jsonl](examples/conflict-docs.jsonl) | Conflicting refund windows for conflict-check |
 | [e2e_demo.py](examples/e2e_demo.py) | Runnable end-to-end pipeline |
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) (`ragpractices` 0.9.0+).
+See [CHANGELOG.md](CHANGELOG.md) (`ragpractices` 0.10.0+).
 
 ## Contributing
 

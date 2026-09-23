@@ -1,6 +1,6 @@
 # 13 — Usable toolkit (`ragpractices`)
 
-A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, claim-level support / entity faithfulness, citation formatting / span verification, offline retrieval eval, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
+A small, stdlib-first Python package that ships with this repo. It does **not** call remote APIs and does not require API keys. Use it to practice document ingest (text/Markdown/HTML + content hashing), chunking, hybrid (keyword + dense) search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, claim-level support / entity faithfulness, pre-answer source conflict checks, citation formatting / span verification, offline retrieval eval, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, answer scoring, and a design-review checklist.
 
 Related: [02 — Chunking](02-chunking.md) · [03 — Embeddings and retrieval](03-embeddings-and-retrieval.md) · [04 — Evaluation](04-evaluation.md) · [06 — RAG principles](06-rag-principles.md) · [examples/evaluation-rubric.md](../examples/evaluation-rubric.md)
 
@@ -19,7 +19,7 @@ Optional dev extra for pytest:
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+. Package name: `ragpractices` (version `0.8.0+`). GitHub Actions CI runs `unittest` plus a retrieval hit-rate gate and index canaries on push/PR to `main`.
+Requires Python 3.10+. Package name: `ragpractices` (version `0.10.0+`). GitHub Actions CI runs `unittest` plus a retrieval hit-rate gate and index canaries on push/PR to `main`.
 
 ## Library API
 
@@ -525,6 +525,20 @@ ragpractices claim-check --answer "Refunds are within 99 days." --sources exampl
 #### `check_claims(answer, sources, *, supported_threshold=0.55, weak_threshold=0.30) -> ClaimCheckReport`
 
 Also: `split_claims`, `extract_sensitive_tokens`. Report fields include per-claim status/overlap, entity hits, counts, `decision`, and `reasons`.
+
+
+### Source conflict check
+
+Pre-answer heuristic for disagreeing retrieved sources: **number** conflicts when different values share similar local context or strong keywords (`day`/`days`, `percent`/`%`, …), plus lightweight **negation** polarity on shared content phrases. Optional `--answer` notes when the draft sided with one camp. Decision: `ok` / `conflict` (CLI exit 1 on conflict). Complements post-answer `claim-check`, `cite-check`, aggregate `ground`, and index `canary`. **Not** an NLI / contradiction model.
+
+```bash
+ragpractices conflict-check --sources examples/conflict-docs.jsonl
+ragpractices conflict-check --sources examples/conflict-docs.jsonl --answer "Refunds within 30 days."
+```
+
+#### `check_conflicts(sources, *, answer=None) -> ConflictReport`
+
+Also: `extract_number_mentions`, `find_number_conflicts`, `find_negation_conflicts`, `format_conflict_report`. Empty sources → `decision=ok` with reason `no sources to compare`.
 
 ### Lost-in-the-middle stress
 

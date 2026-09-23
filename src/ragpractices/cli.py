@@ -36,6 +36,11 @@ from ragpractices.claim_check import (
     format_claim_check_report,
     report_to_dict as claim_check_report_to_dict,
 )
+from ragpractices.conflict_check import (
+    check_conflicts,
+    format_conflict_report,
+    report_to_dict as conflict_report_to_dict,
+)
 from ragpractices.compare import compare_strategies, format_compare_table, report_to_dict as compare_report_to_dict
 from ragpractices.eval import evaluate_retrieval, load_golden_jsonl, report_to_dict
 from ragpractices.filters import filter_docs, load_docs_jsonl
@@ -808,6 +813,23 @@ def cmd_claim_check(args: argparse.Namespace) -> int:
     return 0 if report.decision == "pass" else 1
 
 
+def cmd_conflict_check(args: argparse.Namespace) -> int:
+    sources = _load_cite_sources(Path(args.sources))
+    answer = None
+    if getattr(args, "answer_file", None):
+        answer = Path(args.answer_file).read_text(encoding="utf-8")
+    elif getattr(args, "answer", None):
+        answer = _load_answer(args.answer)
+    report = check_conflicts(sources, answer=answer)
+    if args.json:
+        json.dump(conflict_report_to_dict(report), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(format_conflict_report(report))
+    # Fail-closed for CI: exit 1 on conflict
+    return 0 if report.decision == "ok" else 1
+
+
 def cmd_cite_check(args: argparse.Namespace) -> int:
     answer = _load_answer(args.answer)
     sources = _load_cite_sources(Path(args.sources))
@@ -918,7 +940,7 @@ def build_parser() -> argparse.ArgumentParser:
             "rewrite, rerank, packing, groundedness, citations, "
             "offline eval, strategy compare, prompts, filters, "
             "HTML ingest, abstain, pipelines, quality, "
-            "claim-check, scoring, and checklists."
+            "claim-check, conflict-check, scoring, and checklists."
         ),
     )
     parser.add_argument(
@@ -1579,6 +1601,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit ClaimCheckReport as JSON",
     )
     p_claim_check.set_defaults(func=cmd_claim_check)
+
+    p_conflict = sub.add_parser(
+        "conflict-check",
+        help=(
+            "Pre-answer source conflict check "
+            "(numbers + light negation; not NLI)"
+        ),
+    )
+    p_conflict.add_argument(
+        "--sources",
+        required=True,
+        help="Sources path: hybrid-docs, JSONL, or JSON list",
+    )
+    p_conflict.add_argument(
+        "--answer",
+        default=None,
+        help="Optional answer text or path (notes if it sides with one camp)",
+    )
+    p_conflict.add_argument(
+        "--answer-file",
+        default=None,
+        dest="answer_file",
+        help="Optional path to answer file (overrides --answer)",
+    )
+    p_conflict.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit ConflictReport as JSON",
+    )
+    p_conflict.set_defaults(func=cmd_conflict_check)
 
     p_pos = sub.add_parser(
         "position-stress",

@@ -1,4 +1,4 @@
-"""ragpractices — small helpers for RAG chunking, rubrics, checklists, hybrid search, ingest, and eval harnesses."""
+"""ragpractices — small helpers for RAG chunking, rubrics, checklists, hybrid search, ingest, conflict checks, and eval harnesses."""
 
 from ragpractices.canaries import (
     Canary,
@@ -22,6 +22,12 @@ from ragpractices.claim_check import (
     check_claims,
     extract_sensitive_tokens,
     split_claims,
+)
+from ragpractices.conflict_check import (
+    Conflict,
+    ConflictReport,
+    NumberMention,
+    check_conflicts,
 )
 from ragpractices.position_stress import (
     PositionStressReport,
@@ -94,7 +100,7 @@ from ragpractices.rubric import (
     score_answer,
 )
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 __all__ = [
     "DIMENSIONS",
@@ -104,6 +110,9 @@ __all__ = [
     "CiteSpanReport",
     "ClaimCheckReport",
     "ClaimResult",
+    "NumberMention",
+    "ConflictReport",
+    "Conflict",
     "EntityHit",
     "PositionStressReport",
     "AbstainResult",
@@ -128,6 +137,7 @@ __all__ = [
     "build_grounded_prompt",
     "build_sources_block",
     "check_claims",
+    "check_conflicts",
     "check_groundedness",
     "chunk_by_headings",
     "chunk_stats",

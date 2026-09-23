@@ -2,6 +2,14 @@
 
 All notable changes to the `ragpractices` toolkit in this repository are documented here.
 
+## [0.10.0] — 2026-09-23
+
+### Added
+- **Source conflict detector** (`ragpractices.conflict_check`): pre-answer check for disagreeing retrieved sources—**number** conflicts (similar local context / strong keyword buckets like day/percent) and lightweight **negation** polarity on shared content phrases; optional answer note when it sides with one camp; decision `ok` / `conflict` (fail-closed); CLI `ragpractices conflict-check` (exit 1 on conflict). Complements post-answer `claim_check`, `cite_spans`, aggregate `groundedness`, and index `canaries`—educational heuristic, **not** NLI / contradiction model. Example: `examples/conflict-docs.jsonl`.
+
+### Changed
+- Package version **0.10.0**.
+
 ## [0.9.0] — 2026-09-22
 
 ### Added
