@@ -47,6 +47,22 @@ missing:
 
 Same wording with `30` → `decision: pass`. That is the niche: **prose can look fine while a number is fabricated**.
 
+The checked-in [passing answer](examples/claim-check-pass.txt) and
+[failing answer](examples/claim-check-fail.txt) differ only in that number.
+Run either file against the same [sources](examples/hybrid-docs.txt), from the
+repository root:
+
+```bash
+# Source-backed 30 days: decision pass, exit 0
+ragpractices claim-check --answer examples/claim-check-pass.txt --sources examples/hybrid-docs.txt
+# Invented 99 days: decision abstain, exit 1 (expected)
+ragpractices claim-check --answer examples/claim-check-fail.txt --sources examples/hybrid-docs.txt
+```
+
+This isolates a generation error: the correct refund policy is already in the
+supplied sources. It does not demonstrate retrieval quality or general factual
+entailment.
+
 Pre-answer source clash (30 vs 90 day refund windows):
 
 ```bash
