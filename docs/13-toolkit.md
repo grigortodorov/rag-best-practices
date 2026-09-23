@@ -522,6 +522,22 @@ ragpractices claim-check --answer "Refunds are within 30 days of purchase." --so
 ragpractices claim-check --answer "Refunds are within 99 days." --sources examples/hybrid-docs.txt
 ```
 
+For a repeatable before/after example, use the checked-in
+[passing answer](../examples/claim-check-pass.txt) and
+[failing answer](../examples/claim-check-fail.txt). From the repository root:
+
+```bash
+ragpractices claim-check --answer examples/claim-check-pass.txt --sources examples/hybrid-docs.txt
+ragpractices claim-check --answer examples/claim-check-fail.txt --sources examples/hybrid-docs.txt
+```
+
+The first returns `decision: pass` (exit `0`). The second returns
+`decision: abstain` (exit `1`, expected), identifying the missing number `99`.
+Both use identical wording except for `30` versus `99`, against the same refund
+source in `hybrid-docs.txt`. The relevant source is present, so this demonstrates
+an invented number in the generated answer, not a retrieval failure. Passing
+this heuristic check does not establish general semantic entailment.
+
 #### `check_claims(answer, sources, *, supported_threshold=0.55, weak_threshold=0.30) -> ClaimCheckReport`
 
 Also: `split_claims`, `extract_sensitive_tokens`. Report fields include per-claim status/overlap, entity hits, counts, `decision`, and `reasons`.
