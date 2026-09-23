@@ -2,33 +2,82 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/grigortodorov/rag-best-practices/actions/workflows/ci.yml/badge.svg)](https://github.com/grigortodorov/rag-best-practices/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![stdlib only](https://img.shields.io/badge/deps-stdlib%20only-brightgreen.svg)](docs/13-toolkit.md)
 
-**Practical, educational guidance for building Retrieval-Augmented Generation (RAG) systems that stay grounded, measurable, and production-safe.**
+<p align="center">
+  <img src="assets/banner.svg" alt="RAG Best Practices — playbook + stdlib toolkit for grounded RAG" width="100%">
+</p>
 
-This repo collects clear principles, tradeoffs, and patterns—chunking, hybrid retrieval, evaluation, citations, multimodal/PDF pitfalls, MCP tool-backed search, computer-use agents alongside RAG, and common anti-patterns. Content is honest and hands-on: **no fabricated metrics, stars, downloads, dependents, or vendor eligibility claims**.
+**Catch RAG hallucinations before users do.** Educational playbook + a tiny stdlib Python toolkit (`ragpractices`) for chunking, hybrid retrieval, eval gates, citations, and claim-level faithfulness — no API keys, no fake metrics.
 
-Use it as a design-review companion, an onboarding reading path, or a checklist source when shipping RAG features.
+If this helps your next RAG design review, a ⭐ makes it easier for others to find.
 
-## Table of contents
+## Why this repo
 
-1. [Who this is for](#who-this-is-for)
-2. [Documentation](#documentation)
-3. [Usable toolkit](#usable-toolkit)
-4. [Examples](#examples)
-5. [Quick start mindset](#quick-start-mindset)
-6. [Before you ship RAG](#before-you-ship-rag)
-7. [Contributing](#contributing)
-8. [Code of conduct](#code-of-conduct)
-9. [License](#license)
+Most RAG writeups stop at “embed → retrieve → prompt.” Shipping teams need the boring parts that prevent invented numbers, silent index drift, and fluent-but-wrong answers.
 
-## Who this is for
+| You need… | This repo gives you… |
+| --- | --- |
+| Principles you can argue in a design review | 13 focused docs + anti-patterns |
+| Something to run in CI today | `eval`, `canary`, `claim-check` (exit codes) |
+| Anti-hallucination beyond “looks grounded” | Claim support + hard number/date/id checks |
+| No vendor lock-in | MIT, stdlib-only toolkit |
 
-- **Engineers** building RAG features into products (search + LLM answer UIs, internal assistants)
-- **ML / applied AI practitioners** tuning chunking, embeddings, hybrid retrieval, and eval harnesses
-- **Technical leads** reviewing architecture, grounding, ACLs, and production readiness
-- **Builders using tool-calling / MCP** who want retrieval behind typed tools with fail-closed behavior
+Honest scope: educational heuristics and stubs — **not** production NLI, and **no** fabricated stars, downloads, or eligibility claims.
 
-Familiarity with basic LLM apps helps; you do not need a research background.
+## 60-second demo (hallucinated number)
+
+```bash
+pip install -e .
+# Source says "30 days" — invented "99" → abstain (exit 1)
+ragpractices claim-check \
+  --answer "Refunds are accepted within 99 days of purchase." \
+  --sources examples/hybrid-docs.txt
+```
+
+```text
+decision: abstain
+reasons: missing entities: 99
+  [supported] overlap=0.67 <- doc-0: Refunds are accepted within 99 days of purchase.
+missing:
+  - number: 99
+```
+
+Same wording with `30` → `decision: pass`. That is the niche: **prose can look fine while a number is fabricated**.
+
+Index drift probe (also in CI):
+
+```bash
+ragpractices canary --canaries examples/canaries.jsonl --docs examples/acl-docs.jsonl --k 3
+# → canaries: 7/7 passed
+```
+
+## Quick start
+
+```bash
+git clone https://github.com/grigortodorov/rag-best-practices.git
+cd rag-best-practices
+pip install -e .
+ragpractices --help
+ragpractices demo --query "refund shipping"
+ragpractices eval --golden examples/golden-retrieval.jsonl --docs examples/hybrid-docs.txt --k 3 --min-hit-rate 0.6
+```
+
+Full command list: [docs/13-toolkit.md](docs/13-toolkit.md).
+
+### Popular toolkit commands
+
+| Command | What it catches / does |
+| --- | --- |
+| `claim-check` | Per-claim support + invented numbers/dates/ids |
+| `cite-check` | Quoted spans and `[n]` markers vs sources |
+| `canary` | Index drift / ACL probe suite (CI gate) |
+| `eval` | Offline hit@k / MRR with `--min-hit-rate` |
+| `chunk-ab` | Compare chunkers on the same golden queries |
+| `position-stress` | Lost-in-the-middle packing stress |
+| `decide` | Fail-closed answer / abstain / clarify |
+| `pipeline` | Multi-stage JSON config + traces |
 
 ## Documentation
 
@@ -46,48 +95,29 @@ Familiarity with basic LLM apps helps; you do not need a research background.
 | [10 — Multimodal and tables](docs/10-multimodal-and-tables.md) | PDFs, tables, images, OCR, structure-aware chunking |
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
 | [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
-| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package (ingest / html / chunk / hybrid / rewrite / rerank / pack / ground / cite / cite-check / claim-check / eval / compare / chunk-ab / position-stress / canary / prompt / filter / decide / pipeline / quality / demo / score / checklist) |
+| [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package reference |
 
-**Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter. Skim [11](docs/11-faq.md) anytime. For the installable helpers, see [13](docs/13-toolkit.md).
+**Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter.
 
-## Usable toolkit
+## Who this is for
 
-Installable helpers (`ragpractices`) for document ingest (incl. HTML + content hashing), chunking demos, hybrid search, query rewrite / multi-query, deterministic rerank / MMR, context packing, heuristic groundedness checks, claim-level support / entity faithfulness, citation formatting / span checks, offline retrieval eval (hit@k / MRR) with CI gates, strategy compare, chunking A/B, lost-in-the-middle stress, index canaries, grounded prompt templates, metadata/ACL filters, fail-closed abstain/clarify, configurable pipelines with traces, chunk quality / near-dedupe, a 0–2 answer scorecard, and a short principles checklist. Stdlib-only runtime; no API keys. Package name: `ragpractices` (v0.9.0+). CI runs unit tests plus a retrieval hit-rate gate and index canaries on push/PR to `main`.
+- Engineers shipping search + LLM answer UIs or internal assistants
+- Applied AI folks tuning chunking, hybrid retrieval, and eval harnesses
+- Leads reviewing grounding, ACLs, and production readiness
+- Builders using tool-calling / MCP who want fail-closed retrieval behind typed tools
 
-```bash
-pip install -e .
-ragpractices --help
-ragpractices ingest examples/ingest-sample --out /tmp/corpus.jsonl
-ragpractices chunk examples/sample.txt --by-headings
-ragpractices hybrid "refund shipping" --docs examples/hybrid-docs.txt --fusion rrf --top 3
-ragpractices rewrite "refund ship" --multi
-ragpractices rerank "refund" --docs examples/hybrid-docs.txt --top 3
-ragpractices cite --answer "Refunds are within 30 days [1]." --sources examples/hybrid-docs.txt
-ragpractices pack --docs examples/hybrid-docs.txt --max-tokens 40
-ragpractices ground --answer "Refunds are within 30 days." --sources examples/hybrid-docs.txt
-ragpractices demo --query "refund shipping"
-ragpractices eval --golden examples/golden-retrieval.jsonl --docs examples/hybrid-docs.txt --k 3 --min-hit-rate 0.6
-ragpractices compare --golden examples/golden-retrieval.jsonl --docs examples/hybrid-docs.txt --k 3
-ragpractices prompt --question "What is the refund window?" --docs examples/hybrid-docs.txt --style cite
-ragpractices filter --docs examples/acl-docs.jsonl --tenant acme --roles public --tags refund
-ragpractices html examples/ingest-sample/faq.html --hash-only
-ragpractices decide --top-score 0.05 --groundedness 0.2
-ragpractices pipeline --config examples/pipeline.json --query "refund shipping"
-ragpractices quality --docs examples/hybrid-docs.txt
-ragpractices dedupe --docs examples/hybrid-docs.txt --threshold 0.9
-ragpractices chunk-ab --sources examples/ingest-sample --golden examples/golden-chunk-ab.jsonl --k 3
-ragpractices cite-check --answer 'Refunds within "30 days of purchase" [1].' --sources examples/hybrid-docs.txt
-ragpractices claim-check --answer "Refunds are within 30 days of purchase." --sources examples/hybrid-docs.txt
-ragpractices position-stress --gold "Refund requests are accepted within 30 days of purchase." --fillers examples/hybrid-docs.txt --max-tokens 200
-ragpractices canary --canaries examples/canaries.jsonl --docs examples/acl-docs.jsonl --k 3
-ragpractices score --scores groundedness=2,relevance=2,completeness=1,citation_quality=2
-```
+## Before you ship RAG
 
-Details: [docs/13-toolkit.md](docs/13-toolkit.md).
+1. **Golden retrieval set** — offline hit@k / MRR (`ragpractices eval`)
+2. **Fail closed** — empty/low-score retrieval abstains (`ragpractices decide`)
+3. **Citations + claim checks** — spans and sensitive tokens verified (`cite-check`, `claim-check`)
+4. **Canaries in CI** — catch index/ACL drift (`ragpractices canary`)
+5. **Hybrid for IDs/keywords** — when users type codes, SKUs, or rare terms
+6. **Traces in staging** — stage timings for debugging (`ragpractices pipeline`)
+
+Checklist: [examples/rag-principles-checklist.md](examples/rag-principles-checklist.md) or `ragpractices checklist`.
 
 ## Examples
-
-Worked sketches and checklists you can copy into a design review:
 
 | Example | Purpose |
 | --- | --- |
@@ -97,48 +127,22 @@ Worked sketches and checklists you can copy into a design review:
 | [mcp-tool-schemas.json](examples/mcp-tool-schemas.json) | Illustrative MCP tool definitions |
 | [sample-rag-pipeline.md](examples/sample-rag-pipeline.md) | End-to-end sketch: ingest → cite |
 | [computer-use-checklist.md](examples/computer-use-checklist.md) | Preflight checklist for UI/browser agents |
-| [sample.txt](examples/sample.txt) | Tiny text fixture for the chunk CLI |
-| [hybrid-docs.txt](examples/hybrid-docs.txt) | Tiny multi-doc fixture for the hybrid CLI |
-| [ingest-sample/](examples/ingest-sample/) | Tiny multi-file fixture for the ingest CLI |
-| [golden-chunk-ab.jsonl](examples/golden-chunk-ab.jsonl) | Doc-level golden set for chunking A/B |
-| [canaries.jsonl](examples/canaries.jsonl) | Index canary probes (acl-docs aligned) |
-| [e2e_demo.py](examples/e2e_demo.py) | Runnable end-to-end pipeline (rewrite → ground) |
-
-## Quick start mindset
-
-1. **Retrieve before generate** — do not invent private facts.
-2. **Ground and cite** — answers must point to stable chunk IDs or URLs.
-3. **Fail closed** — empty or low-score retrieval → abstain.
-4. **Evaluate retrieval separately** from answer fluency.
-5. **Prefer hybrid search** when users type IDs, error codes, or rare keywords.
-
-For the full list, see [docs/06-rag-principles.md](docs/06-rag-principles.md). For citations and abstention patterns, see [docs/09-citations-and-grounding.md](docs/09-citations-and-grounding.md).
-
-
-## Before you ship RAG
-
-Short scorecard (also see [examples/rag-principles-checklist.md](examples/rag-principles-checklist.md) and `ragpractices checklist`):
-
-1. **Golden retrieval set** — offline hit@k / MRR on labeled queries (`ragpractices eval`).
-2. **Fail closed** — empty or low-score retrieval abstains; weak groundedness clarifies (`ragpractices decide`).
-3. **Citations required** — answers point at stable chunk/doc ids, not free-form prose.
-4. **Chunk quality** — length stats and near-dupes reviewed (`ragpractices quality` / `dedupe`).
-5. **Hybrid for IDs/keywords** — keyword + dense (or RRF) when users type codes, SKUs, or rare terms.
-6. **Token-budget packing** — context fits the model window without silent truncation surprises.
-7. **Traces in staging** — pipeline stage timings/summaries available for debugging (`ragpractices pipeline`).
+| [golden-retrieval.jsonl](examples/golden-retrieval.jsonl) | Offline retrieval goldens |
+| [canaries.jsonl](examples/canaries.jsonl) | Index canary probes |
+| [e2e_demo.py](examples/e2e_demo.py) | Runnable end-to-end pipeline |
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for toolkit release notes (`ragpractices` 0.8.0+).
+See [CHANGELOG.md](CHANGELOG.md) (`ragpractices` 0.9.0+).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose improvements. Doc gaps welcome via the [doc improvement](.github/ISSUE_TEMPLATE/doc-improvement.yml) issue template; PRs can use [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md).
+Doc gaps and toolkit nits welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Issues with the `good first issue` label are a fine place to start.
 
 ## Code of conduct
 
-Participation is governed by the [Contributor Covenant](CODE_OF_CONDUCT.md). Report concerns by opening an issue.
+[Contributor Covenant](CODE_OF_CONDUCT.md). Report concerns by opening an issue.
 
 ## License
 
-Released under the [MIT License](LICENSE). Copyright (c) 2026 grigortodorov.
+[MIT License](LICENSE). Copyright (c) 2026 grigortodorov.
