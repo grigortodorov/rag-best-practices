@@ -105,6 +105,7 @@ Full command list: [docs/13-toolkit.md](docs/13-toolkit.md).
 | [11 — FAQ](docs/11-faq.md) | Short answers to common build questions |
 | [12 — Computer-use tools](docs/12-computer-use-tools.md) | Browser/desktop agents with RAG workflows |
 | [13 — Toolkit](docs/13-toolkit.md) | Installable `ragpractices` package reference |
+| [14 — Evaluation starter](docs/14-eval-starter.md) | One-page eval, canary and claim-check workflow |
 
 **Suggested path:** [01](docs/01-overview.md) → [02](docs/02-chunking.md) + [03](docs/03-embeddings-and-retrieval.md) → [06](docs/06-rag-principles.md) → [09](docs/09-citations-and-grounding.md) → [04](docs/04-evaluation.md) → [05](docs/05-production.md) + [08](docs/08-anti-patterns.md). Add [07](docs/07-mcp-tools-for-rag.md) for tool-backed retrieval, [12](docs/12-computer-use-tools.md) when agents drive a live UI, and [10](docs/10-multimodal-and-tables.md) when PDFs/tables/images matter.
 
